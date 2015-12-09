@@ -15,6 +15,7 @@
 #include <string>
 #include <utility>  // pair
 #include <vector>
+#include <complex>
 
 #include "caffe/util/device_alternate.hpp"
 

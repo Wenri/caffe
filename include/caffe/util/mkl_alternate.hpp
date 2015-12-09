@@ -3,8 +3,11 @@
 
 #ifdef USE_MKL
 
+#define MKL_Complex8  std::complex<float>
+#define MKL_Complex16 std::complex<double>
 #include <mkl.h>
-
+#include <fftw3.h>
+#include <fftw3_mkl.h>
 #else  // If use MKL, simply include the MKL header
 
 extern "C" {

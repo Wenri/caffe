@@ -504,6 +504,44 @@ class InnerProductLayer : public Layer<Dtype> {
 };
 
 /**
+ * @brief Also known as a "fully-connected" layer, computes an inner product
+ *        with a set of learned weights, and (optionally) adds biases.
+ *
+ * TODO(dox): thorough documentation for Forward, Backward, and proto params.
+ */
+template <typename Dtype>
+class CirculantProjectionLayer : public Layer<Dtype> {
+ public:
+  explicit CirculantProjectionLayer(const LayerParameter& param)
+      : Layer<Dtype>(param) {}
+  virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+
+  virtual inline const char* type() const { return "CirculantProjection"; }
+  virtual inline int ExactNumBottomBlobs() const { return 1; }
+  virtual inline int ExactNumTopBlobs() const { return 1; }
+
+ protected:
+  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+
+  int M_;
+  int K_;
+  int N_;
+  bool bias_term_;
+  Blob<Dtype> conv_buffer_;
+  Blob<Dtype> bias_multiplier_;
+};
+
+/**
  * @brief Normalizes the input to have 0-mean and/or unit (1) variance.
  *
  * TODO(dox): thorough documentation for Forward, Backward, and proto params.

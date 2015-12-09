@@ -163,6 +163,18 @@ void caffe_mul<double>(const int n, const double* a, const double* b,
 }
 
 template <>
+void caffe_mul<std::complex<float>>(const int n, const std::complex<float>* a, const std::complex<float>* b,
+    std::complex<float>* y) {
+  vcMul(n, a, b, y);
+}
+
+template <>
+void caffe_mul<std::complex<double>>(const int n, const std::complex<double>* a, const std::complex<double>* b,
+    std::complex<double>* y) {
+  vzMul(n, a, b, y);
+}
+
+template <>
 void caffe_div<float>(const int n, const float* a, const float* b,
     float* y) {
   vsDiv(n, a, b, y);
@@ -347,6 +359,41 @@ float caffe_cpu_dot<float>(const int n, const float* x, const float* y);
 
 template
 double caffe_cpu_dot<double>(const int n, const double* x, const double* y);
+
+template <>
+void caffe_cpu_fft<float>(const int n, const float* x, std::complex<float>* y) {
+  /* FFTW plan handle */
+  fftwf_plan hplan = 0;
+
+  hplan = fftwf_plan_dft_r2c_1d(n, const_cast<float *>(x), reinterpret_cast<fftwf_complex *>(y), FFTW_ESTIMATE);
+  if (0 == hplan) goto failed;
+
+  fftwf_execute(hplan);
+
+  fftwf_destroy_plan(hplan);
+
+ failed:
+
+  return;
+}
+
+template <>
+void caffe_cpu_ifft<float>(const int n, const std::complex<float>* x, float* y){
+  /* FFTW plan handle */
+  fftwf_plan hplan = 0;
+
+  hplan = fftwf_plan_dft_c2r_1d(n, const_cast<fftwf_complex *>(reinterpret_cast<const fftwf_complex *>(x)), y, FFTW_ESTIMATE);
+  if (0 == hplan) goto failed;
+
+  fftwf_execute(hplan);
+
+  fftwf_destroy_plan(hplan);
+
+ failed:
+
+  return;
+
+}
 
 template <>
 int caffe_cpu_hamming_distance<float>(const int n, const float* x,

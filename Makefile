@@ -238,12 +238,17 @@ DOXYGEN_SOURCES += $(DOXYGEN_CONFIG_FILE)
 UNAME := $(shell uname -s)
 ifeq ($(UNAME), Linux)
 	LINUX := 1
+	# CLANG := 1
 else ifeq ($(UNAME), Darwin)
 	OSX := 1
 endif
 
 # Linux
-ifeq ($(LINUX), 1)
+ifeq ($(CLANG), 1)
+	CXX := /usr/bin/clang++-3.6
+	CXXFLAGS += -stdlib=libc++
+	LIBRARIES += boost_thread
+else ifeq ($(LINUX), 1)
 	CXX ?= /usr/bin/g++
 	GCCVERSION := $(shell $(CXX) -dumpversion | cut -f1,2 -d.)
 	# older versions of gcc are too dumb to build boost with -Wuninitalized
@@ -300,7 +305,7 @@ ifeq ($(DEBUG), 1)
 	COMMON_FLAGS += -DDEBUG -g -O0
 	NVCCFLAGS += -G
 else
-	COMMON_FLAGS += -DNDEBUG -O2
+	COMMON_FLAGS += -DNDEBUG -O3
 endif
 
 # cuDNN acceleration configuration.
@@ -346,7 +351,7 @@ ifeq ($(BLAS), mkl)
 	LIBRARIES += mkl_rt
 	COMMON_FLAGS += -DUSE_MKL
 	MKL_DIR ?= /opt/intel/mkl
-	BLAS_INCLUDE ?= $(MKL_DIR)/include
+	BLAS_INCLUDE ?= $(MKL_DIR)/include $(MKL_DIR)/include/fftw
 	BLAS_LIB ?= $(MKL_DIR)/lib $(MKL_DIR)/lib/intel64
 else ifeq ($(BLAS), open)
 	# OpenBLAS
@@ -383,7 +388,7 @@ CXXFLAGS += -MMD -MP
 
 # Complete build flags.
 COMMON_FLAGS += $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir))
-CXXFLAGS += -pthread -fPIC $(COMMON_FLAGS) $(WARNINGS)
+CXXFLAGS += -std=c++1y -pthread -fPIC $(COMMON_FLAGS) $(WARNINGS)
 NVCCFLAGS += -ccbin=$(CXX) -Xcompiler -fPIC $(COMMON_FLAGS)
 # mex may invoke an older gcc that is too liberal with -Wuninitalized
 MATLAB_CXXFLAGS := $(CXXFLAGS) -Wno-uninitialized

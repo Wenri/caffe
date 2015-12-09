@@ -116,6 +116,17 @@ void caffe_gpu_dot<double>(const int n, const double* x, const double* y,
   CUBLAS_CHECK(cublasDdot(Caffe::cublas_handle(), n, x, 1, y, 1, out));
 }
 
+template <>  
+void caffe_gpu_fft<float>(const int n, const float* x, std::complex<float>* y){  
+  /* FFTW plan handle */ 
+  
+}
+
+template <>  
+void caffe_gpu_ifft<float>(const int n, const std::complex<float>* x, float* y){  
+  /* FFTW plan handle */ 
+}
+
 template <>
 void caffe_gpu_asum<float>(const int n, const float* x, float* y) {
   CUBLAS_CHECK(cublasSasum(Caffe::cublas_handle(), n, x, 1, y));
