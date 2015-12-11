@@ -102,10 +102,10 @@ Dtype caffe_cpu_strided_dot(const int n, const Dtype* x, const int incx,
     const Dtype* y, const int incy);
 
 template <typename Dtype>
-void caffe_cpu_fft(const int n, const Dtype* x, std::complex<Dtype>* y);
+void caffe_cpu_fft(const int howmany, const int n, const Dtype* x, std::complex<Dtype>* y);
 
 template <typename Dtype>
-void caffe_cpu_ifft(const int n, const std::complex<Dtype>* x, Dtype* y);
+void caffe_cpu_ifft(const int howmany, const int n, const std::complex<Dtype>* x, Dtype* y);
 
 template <typename Dtype>
 int caffe_cpu_hamming_distance(const int n, const Dtype* x, const Dtype* y);

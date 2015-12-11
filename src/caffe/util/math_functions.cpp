@@ -361,7 +361,7 @@ template
 double caffe_cpu_dot<double>(const int n, const double* x, const double* y);
 
 template <>
-void caffe_cpu_fft<float>(const int n, const float* x, std::complex<float>* y) {
+void caffe_cpu_fft<float>(const int howmany, const int n, const float* x, std::complex<float>* y) {
   /* FFTW plan handle */
   fftwf_plan hplan = 0;
 
@@ -378,7 +378,7 @@ void caffe_cpu_fft<float>(const int n, const float* x, std::complex<float>* y) {
 }
 
 template <>
-void caffe_cpu_ifft<float>(const int n, const std::complex<float>* x, float* y){
+void caffe_cpu_ifft<float>(const int howmany, const int n, const std::complex<float>* x, float* y){
   /* FFTW plan handle */
   fftwf_plan hplan = 0;
 
