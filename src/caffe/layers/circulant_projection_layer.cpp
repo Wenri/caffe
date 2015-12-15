@@ -11,6 +11,7 @@ void CirculantProjectionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bot
       const vector<Blob<Dtype>*>& top) {
   const int num_output = this->layer_param_.circulant_projection_param().num_output();
   bias_term_ = this->layer_param_.circulant_projection_param().bias_term();
+  LOG(INFO)<<"CirculantProjectionLayerSetUp, N="<<num_output;
   N_ = num_output;
   const int axis = bottom[0]->CanonicalAxisIndex(
       this->layer_param_.circulant_projection_param().axis());
@@ -30,9 +31,9 @@ void CirculantProjectionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bot
     }
     // Intialize the weight
     vector<int> bias_shape(1, N_);
-    vector<int> weight_shape(2);
-    weight_shape[0] = N_;
-    weight_shape[1] = K_;
+    // vector<int> weight_shape(2);
+    // weight_shape[0] = N_;
+    // weight_shape[1] = K_;
     this->blobs_[0].reset(new Blob<Dtype>(bias_shape));
     // fill the weights
     shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(
@@ -72,8 +73,13 @@ void CirculantProjectionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom
   weight_shape[1] = K_;
   vector<int> bias_shape(1, M_);
   this->weight_buffer_.Reshape(weight_shape);
-  this->conv_buffer_.Reshape(bias_shape);
-  this->param_buffer_.Reshape(bias_shape);
+  weight_shape[0] = M_;
+  weight_shape[1] = N_;
+  weight_shape.push_back(K_);
+  weight_shape.push_back(2);
+  this->conv_buffer_.Reshape(weight_shape);
+  this->param_buffer_.Reshape(weight_shape);
+  LOG(INFO)<<"Buffer Allocated: "<<weight_shape[0]<<"x"<<weight_shape[1];
   // Set up the bias multiplier
   if (bias_term_) {
     bias_multiplier_.Reshape(bias_shape);
@@ -87,17 +93,20 @@ void CirculantProjectionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bo
   const Dtype* bottom_data = bottom[0]->cpu_data();
   Dtype* top_data = top[0]->mutable_cpu_data();
   const Dtype* weight = this->blobs_[0]->cpu_data();
-  std::complex<Dtype>* conv_buffer = this->conv_buffer_.mutable_cpu_data();
-  std::complex<Dtype>* param_buffer = this->param_buffer_.mutable_cpu_data(); 
+  std::complex<Dtype>* conv_buffer = reinterpret_cast<std::complex<Dtype>*>(this->conv_buffer_.mutable_cpu_data());
+  std::complex<Dtype>* param_buffer = reinterpret_cast<std::complex<Dtype>*>(this->param_buffer_.mutable_cpu_data()); 
 
+  LOG(INFO)<<"Forward/FFT";
   // caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasTrans, M_, N_, K_, (Dtype)1.,
   //     bottom_data, weight, (Dtype)0., top_data);
   caffe_cpu_fft<Dtype>(1, N_, weight, param_buffer);
   caffe_cpu_fft<Dtype>(M_, N_, bottom_data, conv_buffer);
+  LOG(INFO)<<"Forward/MUL";
   for(int i=0; i<M_; i++)
   {
     caffe_mul<std::complex<Dtype>>(N_, param_buffer, conv_buffer + i*N_, conv_buffer + i*N_);
   }
+  LOG(INFO)<<"FORWARD/IFFT";
   caffe_cpu_ifft<Dtype>(M_, N_, conv_buffer, top_data);
 
   if (bias_term_) {
@@ -114,13 +123,14 @@ void CirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& t
   if (this->param_propagate_down_[0]) {
     const Dtype* top_diff = top[0]->cpu_diff();
     const Dtype* bottom_data = bottom[0]->cpu_data();
-    std::complex<Dtype>* conv_buffer = this->conv_buffer_.mutable_cpu_data();
-    std::complex<Dtype>* param_buffer = this->param_buffer_.mutable_cpu_data(); 
+    std::complex<Dtype>* conv_buffer = reinterpret_cast<std::complex<Dtype>*>(this->conv_buffer_.mutable_cpu_data());
+    std::complex<Dtype>* param_buffer = reinterpret_cast<std::complex<Dtype>*>(this->param_buffer_.mutable_cpu_data()); 
     Dtype* weight_buffer = this->weight_buffer_.mutable_cpu_data();
     Dtype* weight_diff = this->blobs_[0]->mutable_cpu_diff();
     // Gradient with respect to weight
     // caffe_cpu_gemm<Dtype>(CblasTrans, CblasNoTrans, N_, K_, M_, (Dtype)1.,
     //     top_diff, bottom_data, (Dtype)1., this->blobs_[0]->mutable_cpu_diff());
+    LOG(INFO)<<"Backword";
     caffe_cpu_fft<Dtype>(M_, N_, top_diff, conv_buffer);
     for(int i=0; i<M_; i++)
     {

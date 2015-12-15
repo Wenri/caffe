@@ -537,8 +537,8 @@ class CirculantProjectionLayer : public Layer<Dtype> {
   int K_;
   int N_;
   bool bias_term_;
-  Blob<std::complex<Dtype>> conv_buffer_;
-  Blob<std::complex<Dtype>> param_buffer_;
+  Blob<Dtype> conv_buffer_;
+  Blob<Dtype> param_buffer_;
   Blob<Dtype> weight_buffer_;
   Blob<Dtype> bias_multiplier_;
 };
