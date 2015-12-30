@@ -241,10 +241,10 @@ template <typename Dtype>
 void caffe_gpu_dot(const int n, const Dtype* x, const Dtype* y, Dtype* out);
 
 template <typename Dtype>
-void caffe_gpu_fft(const int n, const Dtype* x, std::complex<Dtype>* y);
+void caffe_gpu_fft(const int howmany, const int n, const Dtype* x, std::complex<Dtype>* y);
 
 template <typename Dtype>
-void caffe_gpu_ifft(const int n, const std::complex<Dtype>* x, Dtype* y);
+void caffe_gpu_ifft(const int howmany, const int n, const std::complex<Dtype>* x, Dtype* y);
 
 template <typename Dtype>
 uint32_t caffe_gpu_hamming_distance(const int n, const Dtype* x,

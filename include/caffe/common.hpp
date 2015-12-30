@@ -89,6 +89,7 @@ using std::set;
 using std::string;
 using std::stringstream;
 using std::vector;
+using std::complex;
 
 // A global initialization function that you should call in your main function.
 // Currently it initializes google flags and google logging.
@@ -133,6 +134,7 @@ class Caffe {
   inline static curandGenerator_t curand_generator() {
     return Get().curand_generator_;
   }
+  inline static cufftHandle cufft_plan() { return Get().cufft_plan_; }
 #endif
 
   // Returns the mode: running on CPU or GPU.
@@ -160,6 +162,7 @@ class Caffe {
 #ifndef CPU_ONLY
   cublasHandle_t cublas_handle_;
   curandGenerator_t curand_generator_;
+  cufftHandle cufft_plan_;
 #endif
   shared_ptr<RNG> random_generator_;
 

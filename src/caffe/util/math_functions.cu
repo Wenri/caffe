@@ -2,7 +2,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>  // thrust::plus
 #include <thrust/reduce.h>
-
+#include <thrust/complex.h>
 #include <cmath>
 
 #include "caffe/common.hpp"
@@ -116,15 +116,76 @@ void caffe_gpu_dot<double>(const int n, const double* x, const double* y,
   CUBLAS_CHECK(cublasDdot(Caffe::cublas_handle(), n, x, 1, y, 1, out));
 }
 
-template <>  
-void caffe_gpu_fft<float>(const int n, const float* x, std::complex<float>* y){  
-  /* FFTW plan handle */ 
-  
+template <>
+void caffe_gpu_fft<float>(const int howmany, const int n, const float* x, std::complex<float>* y) {
+  /* FFTW plan handle */
+  cufftHandle hplan = Caffe::cufft_plan();
+  cufftReal *in = const_cast<cufftReal *>(reinterpret_cast<const cufftReal *>(x));
+  cufftComplex *out = reinterpret_cast<cufftComplex *>(y);
+  int NX[] = {n};
+  size_t workSize[] = {0};
+
+  CUFFT_CHECK(cufftPlanMany(&hplan, 1, NX,
+		NX, 1, n,
+		NX, 1, n,
+		CUFFT_R2C, howmany));
+
+  CUFFT_CHECK(cufftExecR2C(hplan, in, out)); 
+  CUFFT_CHECK(cufftDestroy(hplan));
 }
 
-template <>  
-void caffe_gpu_ifft<float>(const int n, const std::complex<float>* x, float* y){  
-  /* FFTW plan handle */ 
+template <>
+void caffe_gpu_ifft<float>(const int howmany, const int n, const std::complex<float>* x, float* y){
+  /* FFTW plan handle */
+  cufftHandle hplan = Caffe::cufft_plan();
+  cufftComplex *in = const_cast<cufftComplex *>(reinterpret_cast<const cufftComplex *>(x));
+  cufftReal *out = reinterpret_cast<cufftReal *>(y);
+  int NX[] = {n};
+  size_t workSize[] = {0};
+
+  CUFFT_CHECK(cufftPlanMany(&hplan, 1, NX,
+		NX, 1, n,
+		NX, 1, n,
+		CUFFT_C2R, howmany));
+
+  CUFFT_CHECK(cufftExecC2R(hplan, in, out)); 
+  CUFFT_CHECK(cufftDestroy(hplan));
+}
+
+template <>
+void caffe_gpu_fft<double>(const int howmany, const int n, const double* x, std::complex<double>* y) {
+  /* FFTW plan handle */
+  cufftHandle hplan = Caffe::cufft_plan();
+  cufftDoubleReal *in = const_cast<cufftDoubleReal *>(reinterpret_cast<const cufftDoubleReal *>(x));
+  cufftDoubleComplex *out = reinterpret_cast<cufftDoubleComplex *>(y);
+  int NX[] = {n};
+  size_t workSize[] = {0};
+
+  CUFFT_CHECK(cufftPlanMany(&hplan, 1, NX,
+		NX, 1, n,
+		NX, 1, n,
+		CUFFT_D2Z, howmany));
+
+  CUFFT_CHECK(cufftExecD2Z(hplan, in, out)); 
+  CUFFT_CHECK(cufftDestroy(hplan));
+}
+
+template <>
+void caffe_gpu_ifft<double>(const int howmany, const int n, const std::complex<double>* x, double* y){
+  /* FFTW plan handle */
+  cufftHandle hplan = Caffe::cufft_plan();
+  cufftDoubleComplex *in = const_cast<cufftDoubleComplex *>(reinterpret_cast<const cufftDoubleComplex *>(x));
+  cufftDoubleReal *out = reinterpret_cast<cufftDoubleReal *>(y);
+  int NX[] = {n};
+  size_t workSize[] = {0};
+
+  CUFFT_CHECK(cufftPlanMany(&hplan, 1, NX,
+		NX, 1, n,
+		NX, 1, n,
+		CUFFT_Z2D, howmany));
+
+  CUFFT_CHECK(cufftExecZ2D(hplan, in, out)); 
+  CUFFT_CHECK(cufftDestroy(hplan));
 }
 
 template <>
@@ -264,6 +325,28 @@ void caffe_gpu_mul<double>(const int N, const double* a,
   // NOLINT_NEXT_LINE(whitespace/operators)
   mul_kernel<double><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
       N, a, b, y);
+}
+
+template <>
+void caffe_gpu_mul<std::complex<float>>(const int N, const std::complex<float>* a,
+    const std::complex<float>* b, std::complex<float>* y) {
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  mul_kernel<thrust::complex<float>><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
+      N, 
+      reinterpret_cast<const thrust::complex<float> *>(a), 
+      reinterpret_cast<const thrust::complex<float> *>(b), 
+      reinterpret_cast<thrust::complex<float> *>(y));
+}
+
+template <>
+void caffe_gpu_mul<std::complex<double>>(const int N, const std::complex<double>* a,
+    const std::complex<double>* b, std::complex<double>* y) {
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  mul_kernel<thrust::complex<double>><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
+      N,
+      reinterpret_cast<const thrust::complex<double> *>(a), 
+      reinterpret_cast<const thrust::complex<double> *>(b), 
+      reinterpret_cast<thrust::complex<double> *>(y));
 }
 
 template <typename Dtype>

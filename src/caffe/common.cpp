@@ -103,6 +103,9 @@ Caffe::Caffe()
   if (cublasCreate(&cublas_handle_) != CUBLAS_STATUS_SUCCESS) {
     LOG(ERROR) << "Cannot create Cublas handle. Cublas won't be available.";
   }
+  if (cufftCreate(&cufft_plan_) != CUFFT_SUCCESS) {
+    LOG(ERROR) << "Cannot create Cufft plan.";
+  }
   // Try to create a curand handler.
   if (curandCreateGenerator(&curand_generator_, CURAND_RNG_PSEUDO_DEFAULT)
       != CURAND_STATUS_SUCCESS ||
@@ -114,6 +117,7 @@ Caffe::Caffe()
 
 Caffe::~Caffe() {
   if (cublas_handle_) CUBLAS_CHECK(cublasDestroy(cublas_handle_));
+  if (cufft_plan_) CUFFT_CHECK(cufftDestroy(cufft_plan_));
   if (curand_generator_) {
     CURAND_CHECK(curandDestroyGenerator(curand_generator_));
   }
@@ -276,6 +280,43 @@ const char* curandGetErrorString(curandStatus_t error) {
   }
   return "Unknown curand status";
 }
+
+const char *cufftGetErrorString(cufftResult error) {
+    switch (error)
+      {
+      case CUFFT_SUCCESS:
+	return "CUFFT_SUCCESS";
+
+      case CUFFT_INVALID_PLAN:
+	return "CUFFT_INVALID_PLAN";
+
+      case CUFFT_ALLOC_FAILED:
+	return "CUFFT_ALLOC_FAILED";
+
+      case CUFFT_INVALID_TYPE:
+	return "CUFFT_INVALID_TYPE";
+
+      case CUFFT_INVALID_VALUE:
+	return "CUFFT_INVALID_VALUE";
+
+      case CUFFT_INTERNAL_ERROR:
+	return "CUFFT_INTERNAL_ERROR";
+
+      case CUFFT_EXEC_FAILED:
+	return "CUFFT_EXEC_FAILED";
+
+      case CUFFT_SETUP_FAILED:
+	return "CUFFT_SETUP_FAILED";
+
+      case CUFFT_INVALID_SIZE:
+	return "CUFFT_INVALID_SIZE";
+
+      case CUFFT_UNALIGNED_DATA:
+	return "CUFFT_UNALIGNED_DATA";
+      }
+
+    return "<unknown>";
+  }
 
 #endif  // CPU_ONLY
 
