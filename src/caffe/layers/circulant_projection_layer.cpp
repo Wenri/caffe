@@ -25,14 +25,14 @@ void CirculantProjectionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bot
     LOG(INFO) << "Skipping parameter initialization";
   } else {
     if (bias_term_) {
-      this->blobs_.resize(2);
+      this->blobs_.resize(3);
     } else {
-      this->blobs_.resize(1);
+      this->blobs_.resize(2);
     }
     // Intialize the weight
     vector<int> bias_shape(1, N_);
-    this->data_flip_.Reshape(bias_shape);
-    caffe_rng_uniform<Dtype>(N_, (Dtype)0, (Dtype)1, this->data_flip_.mutable_cpu_data());
+    this->blobs_[2].reset(new Blob<Dtype>(bias_shape));
+    caffe_rng_uniform<Dtype>(N_, (Dtype)0, (Dtype)1, this->blobs_[2]->mutable_cpu_data());
     this->blobs_[0].reset(new Blob<Dtype>(bias_shape));
     // fill the weights
     shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(
@@ -47,6 +47,8 @@ void CirculantProjectionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bot
     }
   }  // parameter initialization
   this->param_propagate_down_.resize(this->blobs_.size(), true);
+  this->param_propagate_down_[2] = false;
+
 }
 
 template <typename Dtype>

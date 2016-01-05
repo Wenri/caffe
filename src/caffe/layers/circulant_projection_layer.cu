@@ -31,7 +31,7 @@ void CirculantProjectionLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bo
   LOG(INFO)<<"Forward/SIGN_FLIP";
   
   sign_flip_kernel<Dtype><<<CAFFE_GET_BLOCKS_2D(M_, K_), CAFFE_CUDA_NUM_THREADS_2D>>>
-    (M_, K_, bottom_data, data_buffer, this->data_flip_.gpu_data());
+    (M_, K_, bottom_data, data_buffer, this->blobs_[2]->gpu_data());
 
   LOG(INFO)<<"Forward/GPU_FFT";
   caffe_gpu_fft<Dtype>(1, N_, weight, param_buffer);
@@ -89,7 +89,7 @@ void CirculantProjectionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& t
     caffe_gpu_fft<Dtype>(M_, N_, top_diff, conv_buffer);
 
     sign_flip_kernel<Dtype><<<CAFFE_GET_BLOCKS_2D(M_, K_), CAFFE_CUDA_NUM_THREADS_2D>>>
-      (M_, K_, bottom_data, data_buffer, this->data_flip_.gpu_data());
+      (M_, K_, bottom_data, data_buffer, this->blobs_[2]->gpu_data());
 
     LOG(INFO)<<"Backword/MUL-IFFT";
     for(int i=0; i<M_; i++)
@@ -121,7 +121,7 @@ void CirculantProjectionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& t
 											       N_,
 						 				       weight_buffer,
 										       param_buffer,
-								        this->data_flip_.gpu_data());
+								        this->blobs_[2]->gpu_data());
     // Gradient with respect to bottom data
     caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, K_, N_, (Dtype)1.,
         top_diff, this->weight_buffer_.gpu_data(), (Dtype)0.,
