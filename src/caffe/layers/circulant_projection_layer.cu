@@ -7,18 +7,35 @@
 namespace caffe {
 
 template <typename Dtype>
+__global__ void sign_flip_kernel(const int m, const int n, const Dtype* r, Dtype* t, const Dtype* d) {
+  CUDA_KERNEL_LOOP_2D(batch, index, m, n) {
+    int off = batch*n+index;
+    if ( d[index] > (Dtype)0.5 )
+      t[off] = r[off];
+    else
+      t[off] = -r[off];
+  }
+}
+
+template <typename Dtype>
 void CirculantProjectionLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
 
   const Dtype* bottom_data = bottom[0]->gpu_data();
   Dtype* top_data = top[0]->mutable_gpu_data();
   const Dtype* weight = this->blobs_[0]->gpu_data();
-  std::complex<Dtype>* conv_buffer = reinterpret_cast<std::complex<Dtype>*>(this->conv_buffer_.mutable_gpu_data());
-  std::complex<Dtype>* param_buffer = reinterpret_cast<std::complex<Dtype>*>(this->param_buffer_.mutable_gpu_data()); 
+  std::complex<Dtype>* conv_buffer = this->conv_buffer_.mutable_gpu_data();
+  std::complex<Dtype>* param_buffer = this->param_buffer_.mutable_gpu_data(); 
+  Dtype* weight_buffer = this->weight_buffer_.mutable_gpu_data();
+  Dtype* data_buffer = this->data_buffer_.mutable_gpu_data();
+  LOG(INFO)<<"Forward/SIGN_FLIP";
+  
+  sign_flip_kernel<Dtype><<<CAFFE_GET_BLOCKS_2D(M_, K_), CAFFE_CUDA_NUM_THREADS_2D>>>
+    (M_, K_, bottom_data, data_buffer, this->data_flip_.gpu_data());
 
   LOG(INFO)<<"Forward/GPU_FFT";
   caffe_gpu_fft<Dtype>(1, N_, weight, param_buffer);
-  caffe_gpu_fft<Dtype>(M_, N_, bottom_data, conv_buffer);
+  caffe_gpu_fft<Dtype>(M_, N_, data_buffer, conv_buffer);
   LOG(INFO)<<"Forward/MUL";
 
   for(int i=0; i<M_; i++)
@@ -45,9 +62,12 @@ __global__ void circulant_copy_kernel(const int n, Dtype* a, const Dtype* b) {
 }
 
 template <typename Dtype>
-__global__ void circulant_matrix_kernel(const int k, const int n, Dtype* dist, const Dtype* src) {
+__global__ void circulant_matrix_kernel(const int k, const int n, Dtype* dist, const Dtype* src, const Dtype* flip) {
   CUDA_KERNEL_LOOP_2D(i, j, k, n) {
-    dist[i*n+j]=src[(n+i-j)%n];
+    if( flip[j]>(Dtype)0.5 )
+      dist[i*n+j]=src[(n+i-j)%n];
+    else
+      dist[i*n+j]=-src[(n+i-j)%n];
   }
 }
 
@@ -59,20 +79,25 @@ void CirculantProjectionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& t
   if (this->param_propagate_down_[0]) {
     const Dtype* top_diff = top[0]->gpu_diff();
     const Dtype* bottom_data = bottom[0]->gpu_data();
-    std::complex<Dtype>* conv_buffer = reinterpret_cast<std::complex<Dtype>*>(this->conv_buffer_.mutable_gpu_data());
-    std::complex<Dtype>* param_buffer = reinterpret_cast<std::complex<Dtype>*>(this->param_buffer_.mutable_gpu_data()); 
+    std::complex<Dtype>* conv_buffer = this->conv_buffer_.mutable_gpu_data();
+    std::complex<Dtype>* param_buffer = this->param_buffer_.mutable_gpu_data(); 
     Dtype* weight_buffer = this->weight_buffer_.mutable_gpu_data();
     Dtype* weight_diff = this->blobs_[0]->mutable_gpu_diff();
+    Dtype* data_buffer = this->data_buffer_.mutable_gpu_data();
 
     LOG(INFO)<<"Backword/FFT-"<<top_diff<<"-"<<conv_buffer;
     caffe_gpu_fft<Dtype>(M_, N_, top_diff, conv_buffer);
+
+    sign_flip_kernel<Dtype><<<CAFFE_GET_BLOCKS_2D(M_, K_), CAFFE_CUDA_NUM_THREADS_2D>>>
+      (M_, K_, bottom_data, data_buffer, this->data_flip_.gpu_data());
+
     LOG(INFO)<<"Backword/MUL-IFFT";
     for(int i=0; i<M_; i++)
     {
       circulant_copy_kernel<Dtype><<<CAFFE_GET_BLOCKS(K_), CAFFE_CUDA_NUM_THREADS>>>(
 										     K_,
 									      weight_buffer,
-									      bottom_data+i*K_);
+									      data_buffer+i*K_);
       caffe_gpu_fft<Dtype>(1, K_, weight_buffer, param_buffer);
       caffe_gpu_mul<std::complex<Dtype>>(N_, conv_buffer + i*N_, param_buffer, param_buffer);
       caffe_gpu_ifft<Dtype>(1, K_, param_buffer, weight_buffer);
@@ -90,11 +115,13 @@ void CirculantProjectionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& t
     const Dtype* top_diff = top[0]->gpu_diff();
     const Dtype* param_buffer = this->blobs_[0]->gpu_data();
     Dtype* weight_buffer = this->weight_buffer_.mutable_gpu_data();
+
     circulant_matrix_kernel<Dtype><<<CAFFE_GET_BLOCKS_2D(K_, N_), CAFFE_CUDA_NUM_THREADS_2D>>>(
 											       K_,
 											       N_,
 						 				       weight_buffer,
-							 			       param_buffer);
+										       param_buffer,
+								        this->data_flip_.gpu_data());
     // Gradient with respect to bottom data
     caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, K_, N_, (Dtype)1.,
         top_diff, this->weight_buffer_.gpu_data(), (Dtype)0.,

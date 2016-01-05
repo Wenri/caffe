@@ -82,28 +82,6 @@ void caffe_add_scalar(const int N, const double alpha, double* Y) {
   }
 }
 
-template <typename Dtype>
-void caffe_copy(const int N, const Dtype* X, Dtype* Y) {
-  if (X != Y) {
-    if (Caffe::mode() == Caffe::GPU) {
-#ifndef CPU_ONLY
-      // NOLINT_NEXT_LINE(caffe/alt_fn)
-      CUDA_CHECK(cudaMemcpy(Y, X, sizeof(Dtype) * N, cudaMemcpyDefault));
-#else
-      NO_GPU;
-#endif
-    } else {
-      memcpy(Y, X, sizeof(Dtype) * N);  // NOLINT(caffe/alt_fn)
-    }
-  }
-}
-
-template void caffe_copy<int>(const int N, const int* X, int* Y);
-template void caffe_copy<unsigned int>(const int N, const unsigned int* X,
-    unsigned int* Y);
-template void caffe_copy<float>(const int N, const float* X, float* Y);
-template void caffe_copy<double>(const int N, const double* X, double* Y);
-
 template <>
 void caffe_scal<float>(const int N, const float alpha, float *X) {
   cblas_sscal(N, alpha, X, 1);
@@ -163,14 +141,14 @@ void caffe_mul<double>(const int n, const double* a, const double* b,
 }
 
 template <>
-void caffe_mul<std::complex<float>>(const int n, const std::complex<float>* a, const std::complex<float>* b,
-    std::complex<float>* y) {
+void caffe_mul<complex<float>>(const int n, const complex<float>* a, const complex<float>* b,
+    complex<float>* y) {
   vcMul(n, a, b, y);
 }
 
 template <>
-void caffe_mul<std::complex<double>>(const int n, const std::complex<double>* a, const std::complex<double>* b,
-    std::complex<double>* y) {
+void caffe_mul<complex<double>>(const int n, const complex<double>* a, const complex<double>* b,
+    complex<double>* y) {
   vzMul(n, a, b, y);
 }
 
@@ -361,7 +339,7 @@ template
 double caffe_cpu_dot<double>(const int n, const double* x, const double* y);
 
 template <>
-void caffe_cpu_fft<float>(const int howmany, const int n, const float* x, std::complex<float>* y) {
+void caffe_cpu_fft<float>(const int howmany, const int n, const float* x, complex<float>* y) {
   /* FFTW plan handle */
   fftwf_plan hplan = 0;
       
@@ -381,7 +359,7 @@ void caffe_cpu_fft<float>(const int howmany, const int n, const float* x, std::c
 }
 
 template <>
-void caffe_cpu_ifft<float>(const int howmany, const int n, const std::complex<float>* x, float* y){
+void caffe_cpu_ifft<float>(const int howmany, const int n, const complex<float>* x, float* y){
   /* FFTW plan handle */
   fftwf_plan hplan = 0;
 
@@ -403,7 +381,7 @@ void caffe_cpu_ifft<float>(const int howmany, const int n, const std::complex<fl
 }
 
 template <>
-void caffe_cpu_fft<double>(const int howmany, const int n, const double* x, std::complex<double>* y) {
+void caffe_cpu_fft<double>(const int howmany, const int n, const double* x, complex<double>* y) {
   /* FFTW plan handle */
   fftw_plan hplan = 0;
   // LOG(INFO)<<"FFT-Double";
@@ -421,7 +399,7 @@ void caffe_cpu_fft<double>(const int howmany, const int n, const double* x, std:
 }
 
 template <>
-void caffe_cpu_ifft<double>(const int howmany, const int n, const std::complex<double>* x, double* y){
+void caffe_cpu_ifft<double>(const int howmany, const int n, const complex<double>* x, double* y){
   /* FFTW plan handle */
   fftw_plan hplan = 0;
 

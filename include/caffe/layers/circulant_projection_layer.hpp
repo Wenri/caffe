@@ -43,10 +43,15 @@ class CirculantProjectionLayer : public Layer<Dtype> {
   int K_;
   int N_;
   bool bias_term_;
-  Blob<Dtype> conv_buffer_;
-  Blob<Dtype> param_buffer_;
+
+  Blob<Dtype> data_buffer_;
+  Blob<complex<Dtype> > conv_buffer_;
+
   Blob<Dtype> weight_buffer_;
+  Blob<complex<Dtype> > param_buffer_;
+
   Blob<Dtype> bias_multiplier_;
+  Blob<Dtype> data_flip_;
 };
 
 }  // namespace caffe

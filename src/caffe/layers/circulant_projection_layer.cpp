@@ -20,7 +20,7 @@ void CirculantProjectionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bot
   // and axis == 1, N inner products with dimension CHW are performed.
   K_ = bottom[0]->count(axis);
   // Check if we need to set up the weights
-  CHECK_EQ(N_, K_) << "Currently only N==K supported.";
+  CHECK_LE(N_, K_) << "Currently only N<=K supported.";
   if (this->blobs_.size() > 0) {
     LOG(INFO) << "Skipping parameter initialization";
   } else {
@@ -31,9 +31,8 @@ void CirculantProjectionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bot
     }
     // Intialize the weight
     vector<int> bias_shape(1, N_);
-    // vector<int> weight_shape(2);
-    // weight_shape[0] = N_;
-    // weight_shape[1] = K_;
+    this->data_flip_.Reshape(bias_shape);
+    caffe_rng_uniform<Dtype>(N_, (Dtype)0, (Dtype)1, this->data_flip_.mutable_cpu_data());
     this->blobs_[0].reset(new Blob<Dtype>(bias_shape));
     // fill the weights
     shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(
@@ -69,19 +68,20 @@ void CirculantProjectionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom
   top_shape[axis] = N_;
   top[0]->Reshape(top_shape);
   vector<int> weight_shape(2);
-  weight_shape[0] = N_;
+  weight_shape[0] = K_;
   weight_shape[1] = K_;
-  vector<int> bias_shape(1, M_);
+  vector<int> bias_shape(1, K_);
   this->weight_buffer_.Reshape(weight_shape);
-  weight_shape[0] = M_;
-  weight_shape[1] = N_;
-  weight_shape.push_back(K_);
-  weight_shape.push_back(2);
-  this->conv_buffer_.Reshape(weight_shape);
-  this->param_buffer_.Reshape(weight_shape);
+  this->param_buffer_.Reshape(bias_shape);
+  vector<int> data_shape(2);
+  data_shape[0] = M_;
+  data_shape[1] = K_;
+  this->data_buffer_.Reshape(data_shape);
+  this->conv_buffer_.Reshape(data_shape);
   LOG(INFO)<<"Buffer Allocated: "<<weight_shape[0]<<"x"<<weight_shape[1];
   // Set up the bias multiplier
   if (bias_term_) {
+    vector<int> bias_shape(1, M_);
     bias_multiplier_.Reshape(bias_shape);
     caffe_set(M_, Dtype(1), bias_multiplier_.mutable_cpu_data());
   }
