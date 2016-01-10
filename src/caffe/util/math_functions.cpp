@@ -342,10 +342,14 @@ template <>
 void caffe_cpu_fft<float>(const int howmany, const int n, const float* x, complex<float>* y) {
   /* FFTW plan handle */
   fftwf_plan hplan = 0;
-      
-  hplan = fftwf_plan_many_dft_r2c(1, &n, howmany,
-				  const_cast<float *>              (x), NULL, 1, n,
-                                  reinterpret_cast<fftwf_complex *>(y), NULL, 1, n,
+  const float *in = x;
+  fftwf_complex *out = reinterpret_cast<fftwf_complex *>(y);
+  int Ni[] = {n};
+  int No[] = {n/2+1};
+
+  hplan = fftwf_plan_many_dft_r2c(1, Ni, howmany,
+				  const_cast<float *>(in), Ni, 1, n,
+                                  out, No, 1, n/2+1,
                                   FFTW_ESTIMATE);
   if (0 == hplan) goto failed;
 
@@ -362,11 +366,14 @@ template <>
 void caffe_cpu_ifft<float>(const int howmany, const int n, const complex<float>* x, float* y){
   /* FFTW plan handle */
   fftwf_plan hplan = 0;
+  const fftwf_complex *in = reinterpret_cast<const fftwf_complex *>(x);
+  float *out = y;
+  int Ni[] = {n/2+1};
+  int No[] = {n};
 
-  hplan = fftwf_plan_many_dft_c2r(1, &n, howmany, 
-    	                          const_cast<fftwf_complex *>
-				  (reinterpret_cast<const fftwf_complex *>(x)), NULL, 1, n,
-				  y, NULL, 1, n, 
+  hplan = fftwf_plan_many_dft_c2r(1, No, howmany, 
+    	                          const_cast<fftwf_complex *>(in), Ni, 1, n/2+1,
+				  out, No, 1, n, 
 				  FFTW_ESTIMATE);
   if (0 == hplan) goto failed;
 
@@ -384,15 +391,21 @@ template <>
 void caffe_cpu_fft<double>(const int howmany, const int n, const double* x, complex<double>* y) {
   /* FFTW plan handle */
   fftw_plan hplan = 0;
-  // LOG(INFO)<<"FFT-Double";
-  for(int i=0; i<howmany; i++) {
-    hplan = fftw_plan_dft_r2c_1d(n, const_cast<double *>(x+i*n), reinterpret_cast<fftw_complex *>(y+i*n), FFTW_ESTIMATE);
-    if (0 == hplan) goto failed;
+  const double *in = x;
+  fftw_complex *out = reinterpret_cast<fftw_complex *>(y);
+  int Ni[] = {n};
+  int No[] = {n/2+1};
 
-    fftw_execute(hplan);
+  hplan = fftw_plan_many_dft_r2c(1, Ni, howmany,
+				  const_cast<double *>(in), Ni, 1, n,
+                                  out, No, 1, n/2+1,
+                                  FFTW_ESTIMATE);
+  if (0 == hplan) goto failed;
 
-    fftw_destroy_plan(hplan);
-  }
+  fftw_execute(hplan);
+
+  fftw_destroy_plan(hplan);
+
  failed:
 
   return;
@@ -402,15 +415,21 @@ template <>
 void caffe_cpu_ifft<double>(const int howmany, const int n, const complex<double>* x, double* y){
   /* FFTW plan handle */
   fftw_plan hplan = 0;
+  const fftw_complex *in = reinterpret_cast<const fftw_complex *>(x);
+  double *out = y;
+  int Ni[] = {n/2+1};
+  int No[] = {n};
 
-  for(int i=0; i<howmany; i++) {
-    hplan = fftw_plan_dft_c2r_1d(n, const_cast<fftw_complex *>(reinterpret_cast<const fftw_complex *>(x+i*n)), y+i*n, FFTW_ESTIMATE);
-    if (0 == hplan) goto failed;
+  hplan = fftw_plan_many_dft_c2r(1, No, howmany, 
+    	                          const_cast<fftw_complex *>(in), Ni, 1, n/2+1,
+				  out, No, 1, n, 
+				  FFTW_ESTIMATE);
+  if (0 == hplan) goto failed;
 
-    fftw_execute(hplan);
+  fftw_execute(hplan);
+  
+  fftw_destroy_plan(hplan);
 
-    fftw_destroy_plan(hplan);
-  }
  failed:
 
   return;

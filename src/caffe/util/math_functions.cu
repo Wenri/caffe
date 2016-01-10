@@ -120,17 +120,18 @@ template <>
 void caffe_gpu_fft<float>(const int howmany, const int n, const float* x, std::complex<float>* y) {
   /* FFTW plan handle */
   cufftHandle hplan = Caffe::cufft_plan();
-  cufftReal *in = const_cast<cufftReal *>(reinterpret_cast<const cufftReal *>(x));
+  const cufftReal *in = reinterpret_cast<const cufftReal *>(x);
   cufftComplex *out = reinterpret_cast<cufftComplex *>(y);
-  int NX[] = {n};
+  int Ni[] = {n};
+  int No[] = {n/2+1};
   size_t workSize[] = {0};
 
-  CUFFT_CHECK(cufftPlanMany(&hplan, 1, NX,
-		NX, 1, n,
-		NX, 1, n,
+  CUFFT_CHECK(cufftPlanMany(&hplan, 1, Ni,
+		Ni, 1, n,
+		No, 1, n/2+1,
 		CUFFT_R2C, howmany));
 
-  CUFFT_CHECK(cufftExecR2C(hplan, in, out)); 
+  CUFFT_CHECK(cufftExecR2C(hplan, const_cast<cufftReal *>(in), out)); 
   CUFFT_CHECK(cufftDestroy(hplan));
 }
 
@@ -138,17 +139,18 @@ template <>
 void caffe_gpu_ifft<float>(const int howmany, const int n, const std::complex<float>* x, float* y){
   /* FFTW plan handle */
   cufftHandle hplan = Caffe::cufft_plan();
-  cufftComplex *in = const_cast<cufftComplex *>(reinterpret_cast<const cufftComplex *>(x));
+  const cufftComplex *in = reinterpret_cast<const cufftComplex *>(x);
   cufftReal *out = reinterpret_cast<cufftReal *>(y);
-  int NX[] = {n};
+  int Ni[] = {n/2+1};
+  int No[] = {n};
   size_t workSize[] = {0};
 
-  CUFFT_CHECK(cufftPlanMany(&hplan, 1, NX,
-		NX, 1, n,
-		NX, 1, n,
+  CUFFT_CHECK(cufftPlanMany(&hplan, 1, No,
+		Ni, 1, n/2+1,
+		No, 1, n,
 		CUFFT_C2R, howmany));
 
-  CUFFT_CHECK(cufftExecC2R(hplan, in, out)); 
+  CUFFT_CHECK(cufftExecC2R(hplan, const_cast<cufftComplex *>(in), out)); 
   CUFFT_CHECK(cufftDestroy(hplan));
 }
 
