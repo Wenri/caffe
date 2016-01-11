@@ -84,10 +84,10 @@ void CirculantProjectionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom
   conv_shape[0] = M_;
   conv_shape[1] = K_/2+1;
   this->conv_buffer_.Reshape(conv_shape);
-  vector<int> diff_shape(2);
-  diff_shape[0] = M_;
-  diff_shape[1] = N_/2+1;
-  this->diff_buffer_.Reshape(diff_shape);
+  // vector<int> diff_shape(2);
+  // diff_shape[0] = M_;
+  // diff_shape[1] = N_/2+1;
+  // this->diff_buffer_.Reshape(conv_shape);
   LOG(INFO)<<"Buffer Allocated: "<<weight_shape[0]<<"x"<<weight_shape[1];
   // Set up the bias multiplier
   if (bias_term_) {
@@ -152,23 +152,29 @@ void CirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& t
     const Dtype* top_diff = top[0]->cpu_diff();
     const Dtype* bottom_data = bottom[0]->cpu_data();
     complex<Dtype>* conv_buffer = this->conv_buffer_.mutable_cpu_data();
-    complex<Dtype>* diff_buffer = this->diff_buffer_.mutable_cpu_diff();
+    complex<Dtype>* diff_buffer = this->conv_buffer_.mutable_cpu_diff();
     Dtype* data_buffer = this->data_buffer_.mutable_cpu_data(); 
     Dtype* weight_diff = this->blobs_[0]->mutable_cpu_diff();
     int Kc = K_ / 2 + 1;
-    int Nc = N_ / 2 + 1;
+ 
     // Gradient with respect to weight
     LOG(INFO)<<"Backword";
-    caffe_cpu_fft<Dtype>(M_, N_, top_diff, diff_buffer);
+    for(int i=0; i<M_; i++)
+    {
+      caffe_copy<Dtype>(N_, top_diff + i*N_, data_buffer + i*K_);
+      for(int j=N_; j<K_; j++) (data_buffer + i*K_)[j] = (Dtype)0;
+    }
+    caffe_cpu_fft<Dtype>(M_, K_, data_buffer, diff_buffer);
     for(int i=0; i<M_; i++)
       for(int j=0; j<K_; j++)
         (data_buffer + i*K_)[(K_-j)%K_] = this->getFlipInput(bottom_data + i*K_, j);
     caffe_cpu_fft<Dtype>(M_, K_, data_buffer, conv_buffer);
     for(int i=0; i<M_; i++)
-      caffe_mul<complex<Dtype> >(Nc, conv_buffer + i*Kc, diff_buffer + i*Nc, conv_buffer + i*Kc);
+      caffe_mul<complex<Dtype> >(Kc, conv_buffer + i*Kc, diff_buffer + i*Kc, conv_buffer + i*Kc);
     caffe_cpu_ifft<Dtype>(M_, K_, conv_buffer, data_buffer);
-    for(int i=0; i<M_; i++)
-      caffe_add<Dtype>(K_, weight_diff, data_buffer + i*K_, weight_diff);
+    caffe_copy<Dtype>(K_, data_buffer, weight_diff);
+    for(int i=1; i<M_; i++)
+      caffe_add<Dtype>(K_, data_buffer + i*K_, weight_diff, weight_diff);
   }
   if (bias_term_ && this->param_propagate_down_[1]) {
     const Dtype* top_diff = top[0]->cpu_diff();
@@ -181,12 +187,12 @@ void CirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& t
     const Dtype* top_diff = top[0]->cpu_diff();
     const Dtype* param_buffer = this->blobs_[0]->cpu_data();
     Dtype* weight_buffer = this->weight_buffer_.mutable_cpu_data();
-    for(int i=0; i<K_; i++)
-      for(int j=0; j<N_; j++)
-	(weight_buffer + i*N_)[j]=this->blobs_[2]->cpu_data()[j]>(Dtype)0.5?param_buffer[(N_+i-j)%N_]:-param_buffer[(N_+i-j)%N_];
+     for(int i=0; i<K_; i++)
+      for(int j=0; j<K_; j++)
+	(weight_buffer + i*K_)[j]=this->blobs_[2]->cpu_data()[j]>(Dtype)0.5?param_buffer[(K_+i-j)%K_]:-param_buffer[(K_+i-j)%K_];
     // Gradient with respect to bottom data
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, K_, N_, (Dtype)1.,
-        top_diff, this->weight_buffer_.cpu_data(), (Dtype)0.,
+        top_diff, weight_buffer, (Dtype)0.,
         bottom[0]->mutable_cpu_diff());
   }
 }
