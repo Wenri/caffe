@@ -191,30 +191,6 @@ layer {
     stride: 2
   }
 }
-# layer {
-#   name: "ip1"
-#   type: "InnerProduct"
-#   bottom: "pool3"
-#   top: "ip1"
-#   param {
-#     lr_mult: 1
-#     decay_mult: 250
-#   }
-#   param {
-#     lr_mult: 2
-#     decay_mult: 0
-#   }
-#   inner_product_param {
-#     num_output: 10
-#     weight_filler {
-#       type: "gaussian"
-#       std: 0.1
-#     }
-#     bias_filler {
-#       type: "constant"
-#     }
-#   }
-# }
 layer {
  name: "circ1"
  type: "CirculantProjection"
@@ -222,7 +198,7 @@ layer {
  top: "circ1"
  param {
    lr_mult: 1
-   decay_mult: 250
+ #  decay_mult: 25
  }
  param {
    lr_mult: 2
@@ -232,37 +208,13 @@ layer {
    num_output: 10
    weight_filler {
      type: "gaussian"
-     std: 0.01
+     std: 0.1
    }
    bias_filler {
      type: "constant"
    }
  }
 }
-# layer {
-#  name: "circ1"
-#  type: "InnerProduct"
-#  bottom: "ip1"
-#  top: "circ1"
-#  param {
-#    lr_mult: 1
-#    decay_mult: 1
-#  }
-#  param {
-#    lr_mult: 2
-#    decay_mult: 0
-#  }
-#  inner_product_param {
-#    num_output: 10
-#    weight_filler {
-#      type: "gaussian"
-#      std: 1
-#    }
-#    bias_filler {
-#      type: "constant"
-#    }
-#  }
-# }
 layer {
   name: "accuracy"
   type: "Accuracy"

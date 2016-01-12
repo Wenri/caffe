@@ -1,5 +1,5 @@
 #include <vector>
-
+#include <thrust/complex.h>
 #include "caffe/filler.hpp"
 #include "caffe/layers/circulant_projection_layer.hpp"
 #include "caffe/util/math_functions.hpp"
@@ -19,6 +19,14 @@ __global__ void sign_flip_kernel(const int m, const int n, const Dtype* r, Dtype
   CUDA_KERNEL_LOOP_2D(batch, index, m, n) {
     int off = batch * n;
     (t + off)[index] = getFlipInput(r + off, index, d);
+  }
+}
+
+template <typename Dtype>
+__global__ void batch_multiply_kernel(const int m, const int n, const Dtype* r, Dtype* t, const Dtype* d) {
+  CUDA_KERNEL_LOOP_2D(batch, index, m, n) {
+    int off = batch * n;
+    (t + off)[index] = (r + off)[index] * d[index];
   }
 }
 
@@ -43,14 +51,19 @@ void CirculantProjectionLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bo
   caffe_gpu_fft<Dtype>(M_, K_, data_buffer, conv_buffer);
   LOG(INFO)<<"Forward/MUL";
 
-  for(int i=0; i<M_; i++)
-  {
-    caffe_gpu_mul<std::complex<Dtype>>(Kc, param_buffer, conv_buffer + i*Kc, conv_buffer + i*Kc);
-  }
-
+  batch_multiply_kernel<thrust::complex<Dtype> ><<<CAFFE_GET_BLOCKS_2D(M_, Kc), CAFFE_CUDA_NUM_THREADS_2D>>>
+    (M_, Kc,
+     reinterpret_cast<thrust::complex<Dtype> *>(conv_buffer),
+     reinterpret_cast<thrust::complex<Dtype> *>(conv_buffer),
+     reinterpret_cast<thrust::complex<Dtype> *>(param_buffer)
+     );
+  
   LOG(INFO)<<"FORWARD/IFFT";
-  caffe_gpu_ifft<Dtype>(M_, K_, conv_buffer, top_data);
-
+  caffe_gpu_ifft<Dtype>(M_, K_, conv_buffer, data_buffer);
+  cudaMemcpy2D(top_data, N_ * sizeof(Dtype),
+	       data_buffer, K_ * sizeof(Dtype),
+	       N_ * sizeof(Dtype), M_, cudaMemcpyDeviceToDevice);
+ 
   if (bias_term_) {
     caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, N_, 1, (Dtype)1.,
         bias_multiplier_.gpu_data(),
@@ -83,18 +96,20 @@ void CirculantProjectionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& t
     const Dtype* bottom_data = bottom[0]->gpu_data();
     std::complex<Dtype>* conv_buffer = this->conv_buffer_.mutable_gpu_data();
     std::complex<Dtype>* param_buffer = this->param_buffer_.mutable_gpu_data(); 
+    Dtype* data_buffer = this->data_buffer_.mutable_gpu_data();
     Dtype* weight_buffer = this->weight_buffer_.mutable_gpu_data();
     Dtype* weight_diff = this->blobs_[0]->mutable_gpu_diff();
-    Dtype* data_buffer = this->data_buffer_.mutable_gpu_data();
-    int Nc = N_ / 2 + 1;
     int Kc = K_ / 2 + 1;
-    LOG(INFO)<<"Backword/FFT-"<<top_diff<<"-"<<conv_buffer;
-    caffe_gpu_fft<Dtype>(M_, N_, top_diff, conv_buffer);
 
+    cudaMemcpy2D(data_buffer, K_ * sizeof(Dtype),
+		 top_diff, N_ * sizeof(Dtype),
+		 N_ * sizeof(Dtype), M_, cudaMemcpyDeviceToDevice);
+    
+    caffe_gpu_fft<Dtype>(M_, N_, top_diff, conv_buffer);
     sign_flip_kernel<Dtype><<<CAFFE_GET_BLOCKS_2D(M_, K_), CAFFE_CUDA_NUM_THREADS_2D>>>
       (M_, K_, bottom_data, data_buffer, this->blobs_[2]->gpu_data());
 
-    LOG(INFO)<<"Backword/MUL-IFFT";
+
     for(int i=0; i<M_; i++)
     {
       circulant_copy_kernel<Dtype><<<CAFFE_GET_BLOCKS(K_), CAFFE_CUDA_NUM_THREADS>>>(
