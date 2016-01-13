@@ -33,7 +33,7 @@ void CirculantProjectionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bot
     vector<int> weight_shape(1, K_);
     this->blobs_[0].reset(new Blob<Dtype>(weight_shape));
     this->blobs_[2].reset(new Blob<Dtype>(weight_shape));
-    caffe_rng_uniform<Dtype>(N_, (Dtype)0, (Dtype)1, this->blobs_[2]->mutable_cpu_data());
+    caffe_rng_uniform<Dtype>(K_, (Dtype)0, (Dtype)1, this->blobs_[2]->mutable_cpu_data());
     // fill the weights
     shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(
         this->layer_param_.circulant_projection_param().weight_filler()));
