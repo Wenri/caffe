@@ -9,7 +9,7 @@
 #include <fftw3.h>
 #include <fftw3_mkl.h>
 #else  // If use MKL, simply include the MKL header
-
+#include <fftw3.h>
 extern "C" {
 #include <cblas.h>
 }
@@ -73,6 +73,14 @@ DEFINE_VSL_UNARY_FUNC_WITH_PARAM(Powx, y[i] = pow(a[i], b));
   inline void vd##name( \
       const int n, const double* a, const double* b, double* y) { \
     v##name<double>(n, a, b, y); \
+  } \
+  inline void vc##name( \
+      const int n, const std::complex<float>* a, const std::complex<float>* b, std::complex<float>* y) { \
+    v##name<std::complex<float> >(n, a, b, y); \
+  } \
+  inline void vz##name( \
+      const int n, const std::complex<double>* a, const std::complex<double>* b, std::complex<double>* y) { \
+    v##name<std::complex<double> >(n, a, b, y); \
   }
 
 DEFINE_VSL_BINARY_FUNC(Add, y[i] = a[i] + b[i]);

@@ -378,6 +378,14 @@ else
 		endif
 	endif
 endif
+
+ifeq ($(USE_CUDNN), 1)
+	LIBRARIES += fftw3 fftw3f
+	COMMON_FLAGS += -DUSE_FFTW
+	INCLUDE_DIRS += $(FFTW_INCLUDE)
+	LIBRARY_DIRS += $(FFTW_LIB)
+endif
+
 INCLUDE_DIRS += $(BLAS_INCLUDE)
 LIBRARY_DIRS += $(BLAS_LIB)
 
@@ -389,7 +397,7 @@ CXXFLAGS += -MMD -MP
 # Complete build flags.
 COMMON_FLAGS += $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir))
 CXXFLAGS += -std=c++1y -pthread -fPIC $(COMMON_FLAGS) $(WARNINGS)
-NVCCFLAGS += -std=c++11 -ccbin=$(CXX) -Xcompiler -fPIC $(COMMON_FLAGS)
+NVCCFLAGS += -D__CUDACC__ -std=c++11 -ccbin=$(CXX) -Xcompiler -fPIC $(COMMON_FLAGS)
 # mex may invoke an older gcc that is too liberal with -Wuninitalized
 MATLAB_CXXFLAGS := $(CXXFLAGS) -Wno-uninitialized
 LINKFLAGS += -pthread -fPIC $(COMMON_FLAGS) $(WARNINGS)

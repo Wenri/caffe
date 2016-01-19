@@ -54,6 +54,11 @@ BLAS := atlas
 # BLAS_INCLUDE := $(shell brew --prefix openblas)/include
 # BLAS_LIB := $(shell brew --prefix openblas)/lib
 
+# FFTW3 library is needed when not use with Intel MKL.
+# USE_FFTW := 1
+# FFTW_INCLUDE := /path/to/your/fftw/include
+# FFTW_LIB := /path/to/your/fftw/lib
+
 # This is required only if you will compile the matlab interface.
 # MATLAB directory should contain the mex binary in /bin.
 # MATLAB_DIR := /usr/local
