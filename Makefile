@@ -379,7 +379,7 @@ else
 	endif
 endif
 
-ifeq ($(USE_CUDNN), 1)
+ifeq ($(USE_FFTW), 1)
 	LIBRARIES += fftw3 fftw3f
 	COMMON_FLAGS += -DUSE_FFTW
 	INCLUDE_DIRS += $(FFTW_INCLUDE)

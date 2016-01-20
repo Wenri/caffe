@@ -7,10 +7,86 @@
 namespace caffe {
 
 template <typename Dtype>
+void CirculantProjectionLayer<Dtype>::initCircParams() {
+    // Intialize the weight
+    vector<int> weight_shape(1, K_);
+    this->blobs_[0].reset(new Blob<Dtype>(weight_shape));
+
+    // fill the weights
+    shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(
+        this->layer_param_.circulant_projection_param().weight_filler()));
+    weight_filler->Fill(this->blobs_[0].get());
+
+    this->param_propagate_down_[0] = true;
+}
+
+template <typename Dtype>
+void CirculantProjectionLayer<Dtype>::initBiasParams() {
+    vector<int> bias_shape(1, N_);
+    this->blobs_[1].reset(new Blob<Dtype>(bias_shape));
+    shared_ptr<Filler<Dtype> > bias_filler(GetFiller<Dtype>(
+	  this->layer_param_.circulant_projection_param().bias_filler()));
+    bias_filler->Fill(this->blobs_[1].get());
+
+    this->param_propagate_down_[1] = true;
+}
+  
+template <typename Dtype>
+void CirculantProjectionLayer<Dtype>::initFlipParams() {
+  
+    vector<int> weight_shape(1, K_);    
+    this->blobs_[2].reset(new Blob<Dtype>(weight_shape));  
+
+    Dtype* flip_data = this->blobs_[2]->mutable_cpu_data();
+
+    if (flip_term_) {
+      auto func = [=](int i, bool r)
+	{
+	  flip_data[i]=r?1.:-1.;
+	};
+    
+      caffe_rng_bernoulli<Dtype>(K_, (Dtype)0.5, func);
+    }else{
+      caffe_set(K_, Dtype(1), flip_data);
+    }
+}
+
+template <typename Dtype>
+void CirculantProjectionLayer<Dtype>::reshapeBuffer() {
+    LOG(INFO)<<"Reshape"<<K_<<N_;
+    vector<int> weight_shape(1, K_);
+    this->weight_buffer_.Reshape(weight_shape);
+
+    vector<int> param_shape(1, K_/2+1);
+    this->param_buffer_.Reshape(param_shape);
+
+    vector<int> data_shape(2);
+    data_shape[0] = M_;
+    data_shape[1] = K_;
+    this->data_buffer_.Reshape(data_shape);
+
+    vector<int> conv_shape(2);
+    conv_shape[0] = M_;
+    conv_shape[1] = K_/2+1;
+    this->conv_buffer_.Reshape(conv_shape);
+}
+  
+template <typename Dtype>
+inline Dtype CirculantProjectionLayer<Dtype>::getFlipInput(const Dtype* input, int index) {
+  const Dtype* flip_data = this->blobs_[2]->cpu_data();
+  
+  if(flip_data[index] > (Dtype)0.5)
+    return input[index];
+  else
+    return -input[index];
+}
+
+template <typename Dtype>
 void CirculantProjectionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   const int num_output = this->layer_param_.circulant_projection_param().num_output();
   bias_term_ = this->layer_param_.circulant_projection_param().bias_term();
+  flip_term_ = true;
   LOG(INFO)<<"CirculantProjectionLayerSetUp, N="<<num_output;
   N_ = num_output;
   const int axis = bottom[0]->CanonicalAxisIndex(
@@ -24,32 +100,16 @@ void CirculantProjectionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bot
   if (this->blobs_.size() > 0) {
     LOG(INFO) << "Skipping parameter initialization";
   } else {
-    if (bias_term_) {
-      this->blobs_.resize(3);
-    } else {
-      this->blobs_.resize(2);
-    }
-    // Intialize the weight
-    vector<int> weight_shape(1, K_);
-    this->blobs_[0].reset(new Blob<Dtype>(weight_shape));
-    this->blobs_[2].reset(new Blob<Dtype>(weight_shape));
-    caffe_rng_uniform<Dtype>(K_, (Dtype)0, (Dtype)1, this->blobs_[2]->mutable_cpu_data());
-    // fill the weights
-    shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(
-        this->layer_param_.circulant_projection_param().weight_filler()));
-    weight_filler->Fill(this->blobs_[0].get());
-    // If necessary, intiialize and fill the bias term
-    if (bias_term_) {
-      vector<int> bias_shape(1, N_);
-      this->blobs_[1].reset(new Blob<Dtype>(bias_shape));
-      shared_ptr<Filler<Dtype> > bias_filler(GetFiller<Dtype>(
-          this->layer_param_.circulant_projection_param().bias_filler()));
-      bias_filler->Fill(this->blobs_[1].get());
-    }
-  }  // parameter initialization
-  this->param_propagate_down_.resize(this->blobs_.size(), true);
-  this->param_propagate_down_[2] = false;
+    this->blobs_.resize(3);
+    this->param_propagate_down_.resize(this->blobs_.size(), false);
 
+    LOG(INFO)<<"Init Circ Projection";
+    this->initCircParams();
+    if (bias_term_) this->initBiasParams();
+    this->initFlipParams();
+
+    LOG(INFO)<<"Init Circ Done";
+  }  // parameter initialization
 }
 
 template <typename Dtype>
@@ -70,39 +130,12 @@ void CirculantProjectionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom
   top_shape.resize(axis + 1);
   top_shape[axis] = N_;
   top[0]->Reshape(top_shape);
-  vector<int> weight_shape(2);
-  weight_shape[0] = K_;
-  weight_shape[1] = K_;
-  this->weight_buffer_.Reshape(weight_shape);
-  vector<int> param_shape(1, K_/2+1);
-  this->param_buffer_.Reshape(param_shape);
-  vector<int> data_shape(2);
-  data_shape[0] = M_;
-  data_shape[1] = K_;
-  this->data_buffer_.Reshape(data_shape);
-  vector<int> conv_shape(2);
-  conv_shape[0] = M_;
-  conv_shape[1] = K_/2+1;
-  this->conv_buffer_.Reshape(conv_shape);
-  // vector<int> diff_shape(2);
-  // diff_shape[0] = M_;
-  // diff_shape[1] = N_/2+1;
-  // this->diff_buffer_.Reshape(conv_shape);
-  LOG(INFO)<<"Buffer Allocated: "<<weight_shape[0]<<"x"<<weight_shape[1];
   // Set up the bias multiplier
   vector<int> bias_shape(1, M_);
   bias_multiplier_.Reshape(bias_shape);
   caffe_set(M_, Dtype(1), bias_multiplier_.mutable_cpu_data());
-}
 
-template <typename Dtype>
-inline Dtype CirculantProjectionLayer<Dtype>::getFlipInput(const Dtype* input, int index) {
-  const Dtype* flip_data = this->blobs_[2]->cpu_data();
-  
-  if(flip_data[index] > (Dtype)0.5)
-    return input[index];
-  else
-    return -input[index];
+  this->reshapeBuffer();
 }
 
 template <typename Dtype>
@@ -127,7 +160,7 @@ void CirculantProjectionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bo
   LOG(INFO)<<"Forward/MUL";
   for(int i=0; i<M_; i++)
   {
-    caffe_mul<complex<Dtype>>(Kc, param_buffer, conv_buffer + i*Kc, conv_buffer + i*Kc);
+    caffe_mul<complex<Dtype> >(Kc, param_buffer, conv_buffer + i*Kc, conv_buffer + i*Kc);
   }
   LOG(INFO)<<"FORWARD/IFFT";
   caffe_cpu_ifft<Dtype>(M_, K_, conv_buffer, data_buffer);

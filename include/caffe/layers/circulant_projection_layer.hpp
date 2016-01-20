@@ -43,17 +43,22 @@ class CirculantProjectionLayer : public Layer<Dtype> {
   int K_;
   int N_;
   bool bias_term_;
+  bool flip_term_;
+  Blob<Dtype> bias_multiplier_;
 
+private:
+  Dtype getFlipInput(const Dtype* input, int index);
+  void initFlipParams();
+  void initBiasParams();
+  void initCircParams();
+  void reshapeBuffer();
+  
   Blob<Dtype> data_buffer_;
   Blob<complex<Dtype> > conv_buffer_;
 
   Blob<Dtype> weight_buffer_;
   Blob<complex<Dtype> > param_buffer_;
 
-  Blob<Dtype> bias_multiplier_;
-
-private:
-  Dtype getFlipInput(const Dtype* input, int index);
 };
 
 }  // namespace caffe

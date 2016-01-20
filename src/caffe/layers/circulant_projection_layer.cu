@@ -7,26 +7,24 @@
 namespace caffe {
 
 template <typename Dtype>
-__device__ inline Dtype getFlipInput(const Dtype* input, int index, const Dtype* flip_data) {
-  if(flip_data[index] > (Dtype)0.5)
-    return input[index];
-  else
-    return -input[index];
-}
-
-template <typename Dtype>
-__global__ void bat_sgnflp_knl(const int m, const int n, const Dtype* r, Dtype* t, const Dtype* d, const Dtype scale = 1.) {
+__global__ void bat_vmul_knl(const int m, const int n, Dtype* t, const Dtype* r, const Dtype* d) {
   CUDA_KERNEL_LOOP_2D(batch, index, m, n) {
     int off = batch * n;
-    (t + off)[index] = getFlipInput(r + off, index, d) * scale;
+    (t + off)[index] = (r + off)[index] * d[index];
   }
 }
 
 template <typename Dtype>
-__global__ void bat_mul_knl(const int m, const int n, const Dtype* r, Dtype* t, const Dtype* d) {
+__global__ void bat_amul_knl(const int m, const int n, Dtype* t, const Dtype* r, const Dtype alpha, const int tn, const int rn) {
   CUDA_KERNEL_LOOP_2D(batch, index, m, n) {
-    int off = batch * n;
-    (t + off)[index] = (r + off)[index] * d[index];
+    (t + batch*tn)[index] = alpha * (r + batch*rn)[index];
+  }
+}
+
+template <typename Dtype>
+__global__ void bat_vamul_knl(const int m, const int n, Dtype* t, const Dtype* r, const Dtype* d, const Dtype alpha, const int tn, const int rn) {
+  CUDA_KERNEL_LOOP_2D(batch, index, m, n) {
+    (t + batch*tn)[index] = alpha * (r + batch*rn)[index] * d[index];
   }
 }
 
@@ -43,8 +41,8 @@ void CirculantProjectionLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bo
   Dtype* data_buffer = this->data_buffer_.mutable_gpu_data();
   int Kc = K_ / 2 + 1;
   
-  bat_sgnflp_knl<Dtype><<<CAFFE_GET_BLOCKS_2D(M_, K_), CAFFE_CUDA_NUM_THREADS_2D>>>
-    (M_, K_, bottom_data, data_buffer, this->blobs_[2]->gpu_data());
+  bat_vmul_knl<Dtype><<<CAFFE_GET_BLOCKS_2D(M_, K_), CAFFE_CUDA_NUM_THREADS_2D>>>
+    (M_, K_, data_buffer, bottom_data, this->blobs_[2]->gpu_data());
   CUDA_POST_KERNEL_CHECK;
   
   LOG(INFO)<<"Forward/GPU_FFT";
@@ -52,7 +50,7 @@ void CirculantProjectionLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bo
   caffe_gpu_fft<Dtype>(M_, K_, data_buffer, conv_buffer);
   LOG(INFO)<<"Forward/MUL";
 
-  bat_mul_knl<thrust::complex<Dtype> >
+  bat_vmul_knl<thrust::complex<Dtype> >
     <<<CAFFE_GET_BLOCKS_2D(M_, Kc), CAFFE_CUDA_NUM_THREADS_2D>>>
     (M_, Kc,
      reinterpret_cast<thrust::complex<Dtype> *>(conv_buffer),
@@ -63,10 +61,11 @@ void CirculantProjectionLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bo
   
   LOG(INFO)<<"FORWARD/IFFT";
   caffe_gpu_ifft<Dtype>(M_, K_, conv_buffer, data_buffer);
-  CUDA_CHECK(cudaMemcpy2D(top_data, N_ * sizeof(Dtype),
-			  data_buffer, K_ * sizeof(Dtype),
-			  N_ * sizeof(Dtype), M_, cudaMemcpyDeviceToDevice));
- 
+
+  bat_amul_knl<Dtype><<<CAFFE_GET_BLOCKS_2D(M_, K_), CAFFE_CUDA_NUM_THREADS_2D>>>
+    (M_, N_, top_data, data_buffer, (Dtype)1./K_, N_, K_);
+  CUDA_POST_KERNEL_CHECK;
+  
   if (bias_term_) {
     caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, N_, 1, (Dtype)1.,
         bias_multiplier_.gpu_data(),
@@ -76,9 +75,10 @@ void CirculantProjectionLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bo
 }
 
 template <typename Dtype>
-__global__ void bat_cirflp_knl(const int k, const int n, Dtype* a, const Dtype* b, const Dtype* flip) {
-  CUDA_KERNEL_LOOP_2D(batch, index, k, n) {
-    (a + batch*n)[(n-index)%n]=getFlipInput(b + batch*n, index, flip);
+__global__ void bat_cirvmul_knl(const int m, const int n, Dtype* t, const Dtype* r, const Dtype* d) {
+  CUDA_KERNEL_LOOP_2D(batch, index, m, n) {
+    int off = batch * n;
+    (t + off)[(n-index)%n]=(r + off)[index] * d[index];
   }
 }
 
@@ -86,13 +86,6 @@ template <typename Dtype>
 __global__ void circpy_knl(const int n, Dtype* dist, const Dtype* src) {
   CUDA_KERNEL_LOOP(i, n) {
     dist[(n-i)%n] = src[i];
-  }
-}
-
-template <typename Dtype>
-__global__ void circulant_matrix_kernel(const int k, const int n, Dtype* dist, const Dtype* src, const Dtype* flip) {
-  CUDA_KERNEL_LOOP_2D(i, j, k, n) {
-    (dist + i*n)[j] = flip[j]>(Dtype)0.5?src[(n+i-j)%n]:-src[(n+i-j)%n];
   }
 }
 
@@ -122,16 +115,17 @@ void CirculantProjectionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& t
     const Dtype* bottom_data = bottom[0]->gpu_data();
     complex<Dtype>* conv_buffer = this->conv_buffer_.mutable_gpu_data();
     Dtype* data_buffer = this->data_buffer_.mutable_gpu_data();
- 
+
     LOG(INFO)<<"Backward/FFT";
 
-    bat_cirflp_knl<Dtype><<<CAFFE_GET_BLOCKS_2D(M_, K_), CAFFE_CUDA_NUM_THREADS_2D>>>
+    bat_cirvmul_knl<Dtype>
+      <<<CAFFE_GET_BLOCKS_2D(M_, K_), CAFFE_CUDA_NUM_THREADS_2D>>>
       (M_, K_, data_buffer, bottom_data, this->blobs_[2]->gpu_data());
     CUDA_POST_KERNEL_CHECK;
     caffe_gpu_fft<Dtype>(M_, K_, data_buffer, conv_buffer);
     caffe_gpu_mul<complex<Dtype> >(M_ * Kc, conv_buffer, diff_buffer, conv_buffer);
     caffe_gpu_ifft<Dtype>(M_, K_, conv_buffer, data_buffer);
-    caffe_gpu_gemv<Dtype>(CblasTrans, M_, K_, (Dtype)1., data_buffer,
+    caffe_gpu_gemv<Dtype>(CblasTrans, M_, K_, (Dtype)1./K_, data_buffer,
 			  bias_multiplier_.gpu_data(), (Dtype)0.,
 			  this->blobs_[0]->mutable_gpu_diff());
   }
@@ -145,18 +139,18 @@ void CirculantProjectionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& t
       (K_,  weight_buffer, this->blobs_[0]->gpu_data());
     CUDA_POST_KERNEL_CHECK;
     caffe_gpu_fft<Dtype>(1, K_, weight_buffer, param_buffer);
-    bat_mul_knl<thrust::complex<Dtype> >
+    bat_vmul_knl<thrust::complex<Dtype> >
       <<<CAFFE_GET_BLOCKS_2D(M_, Kc), CAFFE_CUDA_NUM_THREADS_2D>>>
       (M_, Kc,
-       reinterpret_cast<thrust::complex<Dtype> *>(diff_buffer),
        reinterpret_cast<thrust::complex<Dtype> *>(conv_buffer),
+       reinterpret_cast<thrust::complex<Dtype> *>(diff_buffer),
        reinterpret_cast<thrust::complex<Dtype> *>(param_buffer)
        );
     CUDA_POST_KERNEL_CHECK;
     caffe_gpu_ifft<Dtype>(M_, K_, conv_buffer, data_buffer);
-    bat_sgnflp_knl<Dtype><<<CAFFE_GET_BLOCKS_2D(M_, K_), CAFFE_CUDA_NUM_THREADS_2D>>>
-      (M_, K_, data_buffer, bottom[0]->mutable_gpu_diff(),
-       this->blobs_[2]->gpu_data(), 1./K_);
+    bat_vamul_knl<Dtype><<<CAFFE_GET_BLOCKS_2D(M_, K_), CAFFE_CUDA_NUM_THREADS_2D>>>
+      (M_, K_, bottom[0]->mutable_gpu_diff(), data_buffer,
+       this->blobs_[2]->gpu_data(), (Dtype)1./K_, K_, K_);
     CUDA_POST_KERNEL_CHECK;
 
     // Gradient with respect to bottom data
