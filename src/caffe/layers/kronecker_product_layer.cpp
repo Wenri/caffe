@@ -11,31 +11,43 @@ void KroneckerProductLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom
       const vector<Blob<Dtype>*>& top) {
   const int num_output = this->layer_param_.kronecker_product_param().num_output();
   bias_term_ = this->layer_param_.kronecker_product_param().bias_term();
-  N_ = num_output;
+  // N_ = num_output;
   const int axis = bottom[0]->CanonicalAxisIndex(
       this->layer_param_.kronecker_product_param().axis());
   // Dimensions starting from "axis" are "flattened" into a single
   // length K_ vector. For example, if bottom[0]'s shape is (N, C, H, W),
   // and axis == 1, N kronecker products with dimension CHW are performed.
-  K_ = bottom[0]->count(axis);
+  // K_ = bottom[0]->count(axis);
+  this->dims_.append(std::make_pair(5,10));
+  this->dims_.append(std::make_pair(5,10));
+
+  N_ = K_ = 1;
+  for(const auto& dim : this->dims_) {
+    N_ = N_ * dim.first;
+    K_ = K_ * dim.second;
+  }
+
   // Check if we need to set up the weights
   if (this->blobs_.size() > 0) {
     LOG(INFO) << "Skipping parameter initialization";
   } else {
     if (bias_term_) {
-      this->blobs_.resize(2);
+      this->blobs_.resize(this->dims_.size()+1);
     } else {
-      this->blobs_.resize(1);
+      this->blobs_.resize(this->dims_.size());
     }
     // Intialize the weight
-    vector<int> weight_shape(2);
-    weight_shape[0] = N_;
-    weight_shape[1] = K_;
-    this->blobs_[0].reset(new Blob<Dtype>(weight_shape));
-    // fill the weights
-    shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(
-        this->layer_param_.kronecker_product_param().weight_filler()));
-    weight_filler->Fill(this->blobs_[0].get());
+    for(const auto& dim : this->dims_) {
+      vector<int> weight_shape(2);
+      weight_shape[0] = dim.first;
+      weight_shape[1] = dim.second;
+      auto weight = make_shared<Blob<Dtype> >(weight_shape);
+      this->blobs_.append(weight);
+      // fill the weights
+      shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(
+          this->layer_param_.kronecker_product_param().weight_filler()));
+      weight_filler->Fill(weight.get());
+    }
     // If necessary, intiialize and fill the bias term
     if (bias_term_) {
       vector<int> bias_shape(1, N_);
@@ -90,7 +102,7 @@ void KroneckerProductLayer<Dtype>::void dakpbx(const Dtype* top, const Dtype* B,
   caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasTrans, k2, d1, d2, (Dtype)1.,
 			B, x, (Dtype)0., this->kpbuf_);
   caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, k1, d1, k2, (Dtype)1.,
-			top, this->kpbuf_, (Dtype)0., t);
+			top, this->kpbuf_, (Dtype)1., t);
   
 }
 
@@ -100,7 +112,7 @@ void KroneckerProductLayer<Dtype>::void akpdbx(const Dtype* top, const Dtype* A,
   caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, k1, d2, d1, (Dtype)1.,
 			A, x, (Dtype)0., this->kpbuf_);
   caffe_cpu_gemm<Dtype>(CblasTrans, CblasNoTrans, k2, d2, k1, (Dtype)1.,
-			top, this->kpbuf_, (Dtype)0., t);
+			top, this->kpbuf_, (Dtype)1., t);
   
 }
 
@@ -125,7 +137,10 @@ void KroneckerProductLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& botto
   //     bottom_data, weight, (Dtype)0., top_data);
 
   for (int i=0; i<M_; i++)
-    akpbx(A, B, bottom_data + i*N_, top_data + i*K_, k1, k2, d1, d2);
+    akpbx(this->blobs_[0]->cpu_data(), this->blobs_[1]->cpu_data(),
+	  bottom_data + i*K_, top_data + i*N_,
+	  this->dims_[0].first, this->dims_[0].second,
+	  this->dims_[1].first, this->dims_[1].second);
 
   if (bias_term_) {
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, N_, 1, (Dtype)1.,
@@ -141,11 +156,35 @@ void KroneckerProductLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
   if (this->param_propagate_down_[0]) {
     const Dtype* top_diff = top[0]->cpu_diff();
     const Dtype* bottom_data = bottom[0]->cpu_data();
+    
     // Gradient with respect to weight
-    caffe_cpu_gemm<Dtype>(CblasTrans, CblasNoTrans, N_, K_, M_, (Dtype)1.,
-        top_diff, bottom_data, (Dtype)1., this->blobs_[0]->mutable_cpu_diff());
+    // caffe_cpu_gemm<Dtype>(CblasTrans, CblasNoTrans, N_, K_, M_, (Dtype)1.,
+    //     top_diff, bottom_data, (Dtype)1., this->blobs_[0]->mutable_cpu_diff());
+    caffe_set(this->dims_[0].first * this->dims_[0].second,
+	      (Dtype)0, this->blobs_[0]->mutable_cpu_data());
+    for (int i=0; i<M_; i++)
+      dakpbx(top_diff + i*N_, this->blobs_[1]->cpu_data(),
+	  bottom_data + i*K_, this->blobs_[0]->mutable_cpu_data(),
+	  this->dims_[0].first, this->dims_[0].second,
+	  this->dims_[1].first, this->dims_[1].second);
+
   }
-  if (bias_term_ && this->param_propagate_down_[1]) {
+  if (this->param_propagate_down_[1]) {
+    const Dtype* top_diff = top[0]->cpu_diff();
+    const Dtype* bottom_data = bottom[0]->cpu_data();
+    // Gradient with respect to weight
+    // caffe_cpu_gemm<Dtype>(CblasTrans, CblasNoTrans, N_, K_, M_, (Dtype)1.,
+    //     top_diff, bottom_data, (Dtype)1., this->blobs_[0]->mutable_cpu_diff());
+    caffe_set(this->dims_[1].first * this->dims_[1].second,
+	      (Dtype)0, this->blobs_[1]->mutable_cpu_data());
+    for (int i=0; i<M_; i++)
+      akpdbx(top_diff + i*N_, this->blobs_[0]->cpu_data(),
+	  bottom_data + i*K_, this->blobs_[1]->mutable_cpu_data(),
+	  this->dims_[0].first, this->dims_[0].second,
+	  this->dims_[1].first, this->dims_[1].second);
+
+  }
+  if (bias_term_ && this->param_propagate_down_[this->dims_.size()]) {
     const Dtype* top_diff = top[0]->cpu_diff();
     // Gradient with respect to bias
     caffe_cpu_gemv<Dtype>(CblasTrans, M_, N_, (Dtype)1., top_diff,
@@ -154,10 +193,17 @@ void KroneckerProductLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
   }
   if (propagate_down[0]) {
     const Dtype* top_diff = top[0]->cpu_diff();
+    Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
     // Gradient with respect to bottom data
-    caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, K_, N_, (Dtype)1.,
-        top_diff, this->blobs_[0]->cpu_data(), (Dtype)0.,
-        bottom[0]->mutable_cpu_diff());
+    // caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, K_, N_, (Dtype)1.,
+    //     top_diff, this->blobs_[0]->cpu_data(), (Dtype)0.,
+    //     bottom[0]->mutable_cpu_diff());
+    for (int i=0; i<M_; i++)
+      akpdbx(top_diff + i*N_, this->blobs_[0]->cpu_data(),
+          this->blobs_[1]->cpu_data(), bottom_diff,
+	  this->dims_[0].first, this->dims_[0].second,
+	  this->dims_[1].first, this->dims_[1].second);
+
   }
 }
 

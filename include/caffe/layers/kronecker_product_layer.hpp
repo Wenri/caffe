@@ -39,6 +39,7 @@ class KroneckerProductLayer : public Layer<Dtype> {
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 
+  vector<std::pair<int, int> > dims_;
   int M_;
   int K_;
   int N_;
