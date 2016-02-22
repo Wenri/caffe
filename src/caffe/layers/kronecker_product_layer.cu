@@ -1,13 +1,13 @@
 #include <vector>
 
 #include "caffe/filler.hpp"
-#include "caffe/layers/inner_product_layer.hpp"
+#include "caffe/layers/kronecker_product_layer.hpp"
 #include "caffe/util/math_functions.hpp"
 
 namespace caffe {
 
 template <typename Dtype>
-void InnerProductLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+void KroneckerProductLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   const Dtype* bottom_data = bottom[0]->gpu_data();
   Dtype* top_data = top[0]->mutable_gpu_data();
@@ -29,7 +29,7 @@ void InnerProductLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
 }
 
 template <typename Dtype>
-void InnerProductLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
+void KroneckerProductLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down,
     const vector<Blob<Dtype>*>& bottom) {
   if (this->param_propagate_down_[0]) {
@@ -55,6 +55,6 @@ void InnerProductLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
   }
 }
 
-INSTANTIATE_LAYER_GPU_FUNCS(InnerProductLayer);
+INSTANTIATE_LAYER_GPU_FUNCS(KroneckerProductLayer);
 
 }  // namespace caffe

@@ -46,6 +46,13 @@ class KroneckerProductLayer : public Layer<Dtype> {
   bool bias_term_;
   Blob<Dtype> bias_multiplier_;
   Blob<Dtype> kpbuf_;
+
+ private:
+  void akpbx(const Dtype* A, const Dtype* B, const Dtype* x, Dtype *t, const int k1, const int d1, const int k2, const int d2);
+  void dakpbx(const Dtype* top, const Dtype* B, const Dtype* x, Dtype *t, const int k1, const int d1, const int k2, const int d2);
+  void akpdbx(const Dtype* top, const Dtype* A, const Dtype* x, Dtype *t, const int k1, const int d1, const int k2, const int d2);
+  void akpbdx(const Dtype* top, const Dtype* A, const Dtype* B, Dtype *t, const int k1, const int d1, const int k2, const int d2);
+  bool unitTest();
 };
 
 }  // namespace caffe
