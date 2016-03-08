@@ -6,8 +6,8 @@ EXAMPLE=examples/imagenet
 DATA=data/ilsvrc12
 TOOLS=build/tools
 
-TRAIN_DATA_ROOT=/home/wenri/Research/imagenet/train/
-VAL_DATA_ROOT=/home/wenri/Research/imagenet/val/
+TRAIN_DATA_ROOT=/datasets/ImageNet/train/
+VAL_DATA_ROOT=/datasets/ImageNet/val/
 
 # Set RESIZE=true to resize the images to 256x256. Leave as false if images have
 # already been resized using another tool.
