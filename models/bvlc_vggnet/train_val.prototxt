@@ -14,7 +14,7 @@ layer {
  }
  data_param {
     source: "examples/imagenet/ilsvrc12_train_lmdb"
-    batch_size: 10
+    batch_size: 8
     backend: LMDB
   }
   top: "data"
@@ -321,8 +321,8 @@ layer {
   bottom: "pool5"
   top: "fc6"
   name: "fc6"
-  type: "CirculantProjection"
-  circulant_projection_param {
+  type: "InnerProduct"
+  inner_product_param {
     num_output: 4096
   }
 }
@@ -332,21 +332,21 @@ layer {
   name: "relu6"
   type: "ReLU"
 }
-# layer {
-#   bottom: "fc6"
-#   top: "fc6"
-#   name: "drop6"
-#   type: "Dropout"
-#   dropout_param {
-#     dropout_ratio: 0.5
-#   }
-# }
+layer {
+  bottom: "fc6"
+  top: "fc6"
+  name: "drop6"
+  type: "Dropout"
+  dropout_param {
+    dropout_ratio: 0.5
+  }
+}
 layer {
   bottom: "fc6"
   top: "fc7"
   name: "fc7"
-  type: "CirculantProjection"
-  circulant_projection_param {
+  type: "InnerProduct"
+  inner_product_param{
     num_output: 4096
   }
 }
@@ -356,15 +356,15 @@ layer {
   name: "relu7"
   type: "ReLU"
 }
-# layer {
-#   bottom: "fc7"
-#   top: "fc7"
-#   name: "drop7"
-#   type: "Dropout"
-#   dropout_param {
-#     dropout_ratio: 0.5
-#   }
-# }
+layer {
+  bottom: "fc7"
+  top: "fc7"
+  name: "drop7"
+  type: "Dropout"
+  dropout_param {
+    dropout_ratio: 0.5
+  }
+}
 layer {
   name: "fc8"
   bottom: "fc7"
