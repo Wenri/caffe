@@ -19,8 +19,13 @@ void KroneckerProductLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom
   // length K_ vector. For example, if bottom[0]'s shape is (N, C, H, W),
   // and axis == 1, N kronecker products with dimension CHW are performed.
   // K_ = bottom[0]->count(axis);
-  this->dims_.push_back(std::make_pair(5,32));
-  this->dims_.push_back(std::make_pair(2,32));
+
+  int num_input = bottom[0]->count(axis);
+  int fan_in  = static_cast<int>(pow(2, static_cast<int>(log(num_input) / log(2)) / 2));
+  int fan_out = static_cast<int>(pow(2, static_cast<int>(log(num_output) / log(2)) / 2));
+
+  this->dims_.push_back(std::make_pair(fan_out, fan_in));
+  this->dims_.push_back(std::make_pair(num_output / fan_out, num_input / fan_in));
  
   N_ = K_ = 1;
   for(const auto& dim : this->dims_) {
@@ -28,7 +33,7 @@ void KroneckerProductLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom
     K_ = K_ * dim.second;
   }
 
-  CHECK_EQ(K_, bottom[0]->count(axis)) << "K mismatch!";
+  CHECK_EQ(K_, num_input) << "K mismatch!";
   CHECK_EQ(N_, num_output) << "N mismatch!";
   
   // Check if we need to set up the weights
@@ -66,8 +71,6 @@ template <typename Dtype>
 void KroneckerProductLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
 
-  LOG(INFO)<<"Reshpae";
-  
   // Figure out the dimensions
   const int axis = bottom[0]->CanonicalAxisIndex(
       this->layer_param_.kronecker_product_param().axis());
@@ -93,7 +96,6 @@ void KroneckerProductLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
     caffe_set(M_, Dtype(1), bias_multiplier_.mutable_cpu_data());
   }
 
-  LOG(INFO)<<"Reshape Done. " << M_;
 }
 
 template <typename Dtype>
@@ -198,7 +200,6 @@ void KroneckerProductLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& botto
 
   // caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasTrans, M_, N_, K_, (Dtype)1.,
   //     bottom_data, weight, (Dtype)0., top_data);
-  LOG(INFO)<<"Forward";
   
   for (int i=0; i<M_; i++)
     this->akpbx(this->blobs_[0]->cpu_data(), this->blobs_[1]->cpu_data(),
@@ -218,8 +219,6 @@ void KroneckerProductLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down,
     const vector<Blob<Dtype>*>& bottom) {
 
-  LOG(INFO)<<"Backward";
-  
   if (this->param_propagate_down_[0]) {
     const Dtype* top_diff = top[0]->cpu_diff();
     const Dtype* bottom_data = bottom[0]->cpu_data();
