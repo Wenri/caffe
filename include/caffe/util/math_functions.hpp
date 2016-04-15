@@ -34,7 +34,20 @@ void caffe_cpu_axpby(const int N, const Dtype alpha, const Dtype* X,
     const Dtype beta, Dtype* Y);
 
 template <typename Dtype>
-void caffe_copy(const int N, const Dtype *X, Dtype *Y);
+void caffe_copy(const int N, const Dtype* X, Dtype* Y) {
+  if (X != Y) {
+    if (Caffe::mode() == Caffe::GPU) {
+#ifndef CPU_ONLY
+      // NOLINT_NEXT_LINE(caffe/alt_fn)
+      CUDA_CHECK(cudaMemcpy(Y, X, sizeof(Dtype) * N, cudaMemcpyDefault));
+#else
+      NO_GPU;
+#endif
+    } else {
+      memcpy(Y, X, sizeof(Dtype) * N);  // NOLINT(caffe/alt_fn)
+    }
+  }
+}
 
 template <typename Dtype>
 void caffe_set(const int N, const Dtype alpha, Dtype *X);
@@ -86,6 +99,10 @@ template <typename Dtype>
 void caffe_rng_bernoulli(const int n, const Dtype p, unsigned int* r);
 
 template <typename Dtype>
+void caffe_rng_bernoulli(const int n, const Dtype p,
+			 std::function<void (int, bool)> func);
+
+template <typename Dtype>
 void caffe_exp(const int n, const Dtype* a, Dtype* y);
 
 template <typename Dtype>
@@ -100,6 +117,15 @@ Dtype caffe_cpu_dot(const int n, const Dtype* x, const Dtype* y);
 template <typename Dtype>
 Dtype caffe_cpu_strided_dot(const int n, const Dtype* x, const int incx,
     const Dtype* y, const int incy);
+
+template <typename Dtype>
+void caffe_cpu_fft(const int howmany, const int n, const Dtype* x, std::complex<Dtype>* y);
+
+template <typename Dtype>
+void caffe_cpu_ifft(const int howmany, const int n, const std::complex<Dtype>* x, Dtype* y);
+
+template <typename Dtype>
+int caffe_cpu_hamming_distance(const int n, const Dtype* x, const Dtype* y);
 
 // Returns the sum of the absolute values of the elements of vector x
 template <typename Dtype>
@@ -230,6 +256,16 @@ void caffe_gpu_rng_bernoulli(const int n, const Dtype p, int* r);
 
 template <typename Dtype>
 void caffe_gpu_dot(const int n, const Dtype* x, const Dtype* y, Dtype* out);
+
+template <typename Dtype>
+void caffe_gpu_fft(const int howmany, const int n, const Dtype* x, std::complex<Dtype>* y);
+
+template <typename Dtype>
+void caffe_gpu_ifft(const int howmany, const int n, const std::complex<Dtype>* x, Dtype* y);
+
+template <typename Dtype>
+uint32_t caffe_gpu_hamming_distance(const int n, const Dtype* x,
+                                    const Dtype* y);
 
 template <typename Dtype>
 void caffe_gpu_asum(const int n, const Dtype* x, Dtype* y);
