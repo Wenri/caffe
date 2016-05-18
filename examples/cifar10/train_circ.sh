@@ -5,6 +5,8 @@ TOOLS=./build/tools
 $TOOLS/caffe.bin train \
     --solver=examples/cifar10/cifar10_circ_solver.prototxt
 
+exit 0
+
 # reduce learning rate by factor of 10
 $TOOLS/caffe.bin train \
     --solver=examples/cifar10/cifar10_circ_solver_lr1.prototxt \

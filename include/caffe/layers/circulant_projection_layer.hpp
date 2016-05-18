@@ -38,6 +38,11 @@ class CirculantProjectionLayer : public Layer<Dtype> {
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  
+  void FillData(const int n, const int a, const int b, const Dtype* x, Dtype* y);
+  void ComplexMulReal(const int n, const complex<Dtype>* a, const Dtype* b, complex<Dtype>* y);
+  void FFTSkewCirc(const int Trans, const int IsVBatch, const Dtype* v, const Dtype* x,  Dtype* result);
+
 
   int M_;
   int K_;
@@ -45,6 +50,7 @@ class CirculantProjectionLayer : public Layer<Dtype> {
   bool bias_term_;
   bool flip_term_;
   Blob<Dtype> bias_multiplier_;
+  Blob<complex<Dtype>> assist_;
 
 private:
   Dtype getFlipInput(const Dtype* input, int index);
@@ -55,9 +61,11 @@ private:
   
   Blob<Dtype> data_buffer_;
   Blob<complex<Dtype> > conv_buffer_;
-
+  Blob<complex<Dtype> > m_buffer_;
+  
   Blob<Dtype> weight_buffer_;
   Blob<complex<Dtype> > param_buffer_;
+ 
 
 };
 

@@ -112,6 +112,12 @@ template <typename Dtype>
 void caffe_abs(const int n, const Dtype* a, Dtype* y);
 
 template <typename Dtype>
+void caffe_conj(const int n, const std::complex<Dtype>* a, std::complex<Dtype>* y){
+  for (int i=0; i<n; i++)
+    y[i] = std::conj(a[i]);
+}
+
+template <typename Dtype>
 Dtype caffe_cpu_dot(const int n, const Dtype* x, const Dtype* y);
 
 template <typename Dtype>
@@ -122,8 +128,14 @@ template <typename Dtype>
 void caffe_cpu_fft(const int howmany, const int n, const Dtype* x, std::complex<Dtype>* y);
 
 template <typename Dtype>
+void caffe_cpu_fft(const int howmany, const int n, const Dtype* x, Dtype* y);
+
+template <typename Dtype>
 void caffe_cpu_ifft(const int howmany, const int n, const std::complex<Dtype>* x, Dtype* y);
 
+template <typename Dtype>
+void caffe_cpu_ifft(const int howmany, const int n, const Dtype* x, Dtype* y);
+  
 template <typename Dtype>
 int caffe_cpu_hamming_distance(const int n, const Dtype* x, const Dtype* y);
 
