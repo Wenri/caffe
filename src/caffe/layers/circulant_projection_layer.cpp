@@ -3,6 +3,7 @@
 #include "caffe/filler.hpp"
 #include "caffe/layers/circulant_projection_layer.hpp"
 #include "caffe/util/math_functions.hpp"
+#define pi 3.14159265359
 
 namespace caffe {
 
@@ -54,10 +55,12 @@ void CirculantProjectionLayer<Dtype>::initFlipParams() {
 template <typename Dtype>
 void CirculantProjectionLayer<Dtype>::reshapeBuffer() {
     LOG(INFO)<<"Reshape"<<K_<<N_;
-    vector<int> weight_shape(1, K_);
+    vector<int> weight_shape(2);
+    weight_shape[0] = K_;
+    weight_shape[1] = K_;
     this->weight_buffer_.Reshape(weight_shape);
 
-    vector<int> param_shape(1, K_/2+1);
+    vector<int> param_shape(1, K_);
     this->param_buffer_.Reshape(param_shape);
 
     vector<int> data_shape(2);
@@ -67,7 +70,7 @@ void CirculantProjectionLayer<Dtype>::reshapeBuffer() {
 
     vector<int> conv_shape(2);
     conv_shape[0] = M_;
-    conv_shape[1] = K_/2+1;
+    conv_shape[1] = K_;
     this->conv_buffer_.Reshape(conv_shape);
 }
   
@@ -110,6 +113,14 @@ void CirculantProjectionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bot
 
     LOG(INFO)<<"Init Circ Done";
   }  // parameter initialization
+
+  
+  vector<int> assist_shape(1,K_);
+  assist_.Reshape(assist_shape);
+  complex<Dtype>* assist = assist_.mutable_cpu_data();
+  assist[0] = 1;
+  assist[1] = std::exp(std::complex<Dtype>(0, pi/K_));//p6
+  for (int i=2; i<K_; i++) assist[i] = assist[i-1] * assist [1];//p3
 }
 
 template <typename Dtype>
@@ -134,26 +145,84 @@ void CirculantProjectionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom
   vector<int> bias_shape(1, M_);
   bias_multiplier_.Reshape(bias_shape);
   caffe_set(M_, Dtype(1), bias_multiplier_.mutable_cpu_data());
-
+  
   this->reshapeBuffer();
+
 }
 
+template <typename Dtype>
+void CirculantProjectionLayer<Dtype>::FFTmul(const Dtype* v, const Dtype* x, Dtype* result){
+
+  const complex<Dtype>* assist = assist_.cpu_data();
+  complex<Dtype>* conv_buffer = (this->conv_buffer_.mutable_cpu_data());
+  complex<Dtype>* param_buffer = (this->param_buffer_.mutable_cpu_data());
+  //int Kc = K_ / 2 + 1; //p3
+  
+    
+  for (int i=0; i<K_;i++) param_buffer[i] = assist[i] * x[i];//p3
+  caffe_cpu_fft<complex<Dtype>>(1, K_, param_buffer, param_buffer);  //p3
+
+  for(int i=0; i<M_; i++) for(int j=0; j<K_; j++)  (conv_buffer+i*K_)[j] = assist[j] * (v+i*K_)[j];//p3
+  caffe_cpu_fft<complex<Dtype>>(M_, K_, conv_buffer, conv_buffer);//p3
+
+  for(int i=0; i<M_; i++)
+  {
+    caffe_mul<complex<Dtype> >(K_, param_buffer, conv_buffer + i*K_, conv_buffer + i*K_);
+  }
+
+  caffe_cpu_ifft<complex<Dtype>>(M_, K_, conv_buffer, conv_buffer);//p3
+
+  caffe_conj<Dtype>(K_, assist, param_buffer);//p3
+  for (int i=0; i<M_; i++) caffe_mul<complex<Dtype>>(K_,param_buffer, conv_buffer+i*K_, conv_buffer+i*K_);//p3
+  for (int i=0; i<K_*M_; i++) result[i] = std::real(conv_buffer[i]) / K_;
+  
+}
+
+template <typename Dtype>
+void CirculantProjectionLayer<Dtype>::FFTmul3(const Dtype* v, const Dtype* x, Dtype* result){
+
+  const complex<Dtype>* assist = assist_.cpu_data();
+  complex<Dtype>* conv_buffer = (this->conv_buffer_.mutable_cpu_data());
+  complex<Dtype>* param_buffer = (this->param_buffer_.mutable_cpu_data());
+
+  for (int i=0; i<K_;i++) param_buffer[i] = assist[i] * x[i];//p3
+   caffe_cpu_fft<complex<Dtype>>(1, K_, param_buffer, param_buffer);  //p3
+
+  for(int i=0; i<M_; i++) for(int j=0; j<K_; j++)  (conv_buffer+i*K_)[j] = assist[j] * (v+i*K_)[j];//p3
+  caffe_conj<Dtype>(M_*K_, conv_buffer, conv_buffer);//p6
+  caffe_cpu_fft<complex<Dtype>>(M_, K_, conv_buffer, conv_buffer);//p3
+
+  for(int i=0; i<M_; i++)
+  {
+    caffe_mul<complex<Dtype> >(K_, param_buffer, conv_buffer + i*K_, conv_buffer + i*K_);
+  }
+
+  caffe_cpu_ifft<complex<Dtype>>(M_, K_, conv_buffer, conv_buffer);//p3
+
+  caffe_conj<Dtype>(K_, assist, param_buffer);//p3
+  for (int i=0; i<M_; i++) caffe_mul<complex<Dtype>>(K_,param_buffer, conv_buffer+i*K_, conv_buffer+i*K_);//p3
+  for (int i=0; i<K_*M_; i++) result[i] = std::real(conv_buffer[i]) / K_;
+  
+}
+  
 template <typename Dtype>
 void CirculantProjectionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   const Dtype* bottom_data = bottom[0]->cpu_data();
   Dtype* top_data = top[0]->mutable_cpu_data();
   const Dtype* weight = this->blobs_[0]->cpu_data();
-  complex<Dtype>* conv_buffer = (this->conv_buffer_.mutable_cpu_data());
-  complex<Dtype>* param_buffer = (this->param_buffer_.mutable_cpu_data()); 
+  //complex<Dtype>* conv_buffer = (this->conv_buffer_.mutable_cpu_data());
+  //complex<Dtype>* param_buffer = (this->param_buffer_.mutable_cpu_data()); 
   Dtype* data_buffer = this->data_buffer_.mutable_cpu_data();
-  int Kc = K_ / 2 + 1;
+  //int Kc = K_ / 2 + 1; //p3
   
   LOG(INFO)<<"Forward/Flip";
   for(int i=0; i<M_; i++)
     for(int j=0; j<K_; j++)
       (data_buffer + i*K_)[j] = this->getFlipInput(bottom_data + i*K_, j);
-        
+  
+  FFTmul(data_buffer, weight, data_buffer); //p2
+  /*     
   LOG(INFO)<<"Forward/FFT";
   caffe_cpu_fft<Dtype>(1, K_, weight, param_buffer);
   caffe_cpu_fft<Dtype>(M_, K_, data_buffer, conv_buffer);
@@ -164,16 +233,43 @@ void CirculantProjectionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bo
   }
   LOG(INFO)<<"FORWARD/IFFT";
   caffe_cpu_ifft<Dtype>(M_, K_, conv_buffer, data_buffer);
+  */
   for(int i=0; i<M_; i++)
   {
     caffe_copy<Dtype>(N_, data_buffer + i*K_, top_data + i*N_);
-  }
+    }
   if (bias_term_) {
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, N_, 1, (Dtype)1.,
         bias_multiplier_.cpu_data(),
         this->blobs_[1]->cpu_data(), (Dtype)1., top_data);
   }
 }
+
+
+template <typename Dtype>
+void CirculantProjectionLayer<Dtype>::FFTmul2(const Dtype* v, const Dtype* x, Dtype* result){
+  complex<Dtype>* conv_buffer = this->conv_buffer_.mutable_cpu_data();
+    complex<Dtype>* diff_buffer = this->conv_buffer_.mutable_cpu_diff();
+    Dtype* data_buffer = this->data_buffer_.mutable_cpu_data(); 
+  complex<Dtype>* param_buffer = (this->param_buffer_.mutable_cpu_data());
+
+    const complex<Dtype>* assist = assist_.cpu_data();
+
+    for (int i=0; i<M_; i++) for (int j=0; j<K_; j++) (diff_buffer+i*K_)[j] = assist[j] * (x+i*K_)[j];
+    caffe_cpu_fft<complex<Dtype>>(M_, K_, diff_buffer, diff_buffer);
+    for (int i=0; i<M_; i++) for (int j=0; j<K_; j++) (conv_buffer+i*K_)[j] = assist[j] * (v+i*K_)[j];
+    caffe_conj<Dtype>(M_*K_, conv_buffer, conv_buffer);//p1 p6
+    caffe_cpu_fft<complex<Dtype>>(M_, K_, conv_buffer, conv_buffer);
+  
+    caffe_mul<complex<Dtype> >(M_ * K_, conv_buffer, diff_buffer, conv_buffer);
+    caffe_cpu_ifft<complex<Dtype>>(M_, K_, conv_buffer, diff_buffer);
+    
+    caffe_conj<Dtype>(K_, assist, param_buffer);//p3
+    for (int i=0; i<M_; i++) caffe_mul<complex<Dtype>>(K_,param_buffer, diff_buffer+i*K_, conv_buffer+i*K_);//p4
+    for (int i=0; i<K_*M_; i++) result[i] = std::real(conv_buffer[i]) / K_;
+    
+}
+  
 
 template <typename Dtype>
 void CirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
@@ -185,25 +281,31 @@ void CirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& t
     const Dtype* bottom_data = bottom[0]->cpu_data();
     complex<Dtype>* conv_buffer = this->conv_buffer_.mutable_cpu_data();
     complex<Dtype>* diff_buffer = this->conv_buffer_.mutable_cpu_diff();
-    Dtype* data_buffer = this->data_buffer_.mutable_cpu_data(); 
-    int Kc = K_ / 2 + 1;
+    Dtype* data_buffer = this->data_buffer_.mutable_cpu_data();
+    Dtype* top_buffer = this->data_buffer_.mutable_cpu_diff();
+    //int Kc = K_ / 2 + 1;P5
  
     // Gradient with respect to weight
   
     for(int i=0; i<M_; i++)
     {
-      caffe_copy<Dtype>(N_, top_diff + i*N_, data_buffer + i*K_);
-      for(int j=N_; j<K_; j++) (data_buffer + i*K_)[j] = (Dtype)0;
+      caffe_copy<Dtype>(N_, top_diff + i*N_, top_buffer + i*K_);//p4
+      for(int j=N_; j<K_; j++) (top_buffer + i*K_)[j] = (Dtype)0;//p4
     }
     caffe_cpu_fft<Dtype>(M_, K_, data_buffer, diff_buffer);
     for(int i=0; i<M_; i++)
       for(int j=0; j<K_; j++)
-        (data_buffer + i*K_)[(K_-j)%K_] = this->getFlipInput(bottom_data + i*K_, j);
+        (data_buffer + i*K_)[j] = this->getFlipInput(bottom_data + i*K_, j);//p1
+    
+    FFTmul2(data_buffer, top_buffer, data_buffer);//p4
+    /*p4
     caffe_cpu_fft<Dtype>(M_, K_, data_buffer, conv_buffer);
+    caffe_conj<Dtype>(M_*K_, conv_buffer, conv_buffer);//p1
     caffe_mul<complex<Dtype> >(M_ * Kc, conv_buffer, diff_buffer, conv_buffer);
     caffe_cpu_ifft<Dtype>(M_, K_, conv_buffer, data_buffer);
+    */
     caffe_cpu_gemv<Dtype>(CblasTrans, M_, K_, (Dtype)1., data_buffer,
-			  bias_multiplier_.cpu_data(), (Dtype)0.,
+			  bias_multiplier_.cpu_data(), (Dtype)1.,
 			  this->blobs_[0]->mutable_cpu_diff());
   }
   if (bias_term_ && this->param_propagate_down_[1]) {
@@ -217,13 +319,28 @@ void CirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& t
     const Dtype* top_diff = top[0]->cpu_diff();
     const Dtype* param_buffer = this->blobs_[0]->cpu_data();
     Dtype* weight_buffer = this->weight_buffer_.mutable_cpu_data();
+    Dtype* data_buffer = this->data_buffer_.mutable_cpu_data();
+    Dtype* top_buffer = this->data_buffer_.mutable_cpu_diff();
+    /*
+    for(int i=0; i<M_; i++)
+    {
+      caffe_copy<Dtype>(N_, top_diff + i*N_, top_buffer + i*K_);//p4
+      for(int j=N_; j<K_; j++) (top_buffer + i*K_)[j] = (Dtype)0;//p4
+    }
+    FFTmul3(param_buffer, top_buffer, data_buffer);//...p5
+    */
+     //mat version
      for(int i=0; i<K_; i++)
       for(int j=0; j<K_; j++)
-	(weight_buffer + i*K_)[j]=this->blobs_[2]->cpu_data()[j]>(Dtype)0.5?param_buffer[(K_+i-j)%K_]:-param_buffer[(K_+i-j)%K_];
+	(weight_buffer + i*K_)[j]=(this->blobs_[2]->cpu_data()[j]>(Dtype)0.5?param_buffer[(K_+i-j)%K_]:-param_buffer[(K_+i-j)%K_]) * (i<j? -1.: 1.);//..p6
     // Gradient with respect to bottom data
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, K_, N_, (Dtype)1.,
         top_diff, weight_buffer, (Dtype)0.,
-        bottom[0]->mutable_cpu_diff());
+        bottom[0]->mutable_cpu_diff());*/
+      /*
+  for(int i=0; i<M_; i++)
+    for(int j=0; j<K_; j++)
+    (bottom[0]->mutable_cpu_diff() + i*K_)[j] = this->getFlipInput(data_buffer + i*K_, j); //...p6 p5*/
   }
 }
 

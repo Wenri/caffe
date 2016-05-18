@@ -45,6 +45,7 @@ class CirculantProjectionLayer : public Layer<Dtype> {
   bool bias_term_;
   bool flip_term_;
   Blob<Dtype> bias_multiplier_;
+  Blob<complex<Dtype>> assist_;
 
 private:
   Dtype getFlipInput(const Dtype* input, int index);
@@ -52,6 +53,9 @@ private:
   void initBiasParams();
   void initCircParams();
   void reshapeBuffer();
+  void FFTmul(const Dtype* v, const Dtype* x, Dtype* result);
+  void FFTmul2(const Dtype* v, const Dtype* x, Dtype* result);
+  void FFTmul3(const Dtype* v, const Dtype* x, Dtype* result);
   
   Blob<Dtype> data_buffer_;
   Blob<complex<Dtype> > conv_buffer_;
