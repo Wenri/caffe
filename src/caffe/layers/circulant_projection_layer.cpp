@@ -34,7 +34,7 @@ void CirculantProjectionLayer<Dtype>::initBiasParams() {
 template <typename Dtype>
 void CirculantProjectionLayer<Dtype>::initFlipParams() {
   
-    vector<int> weight_shape(K_, K_);    
+  vector<int> weight_shape(1, K_);    
     this->blobs_[2].reset(new Blob<Dtype>(weight_shape));  
 
     Dtype* flip_data = this->blobs_[2]->mutable_cpu_data();
@@ -53,8 +53,10 @@ void CirculantProjectionLayer<Dtype>::initFlipParams() {
 
 template <typename Dtype>
 void CirculantProjectionLayer<Dtype>::reshapeBuffer() {
-    LOG(INFO)<<"Reshape"<<K_<<N_;
-    vector<int> weight_shape(K_, K_);
+  //LOG(INFO)<<"Reshape"<<K_<<N_;
+    vector<int> weight_shape(2);
+    weight_shape[0] = K_;
+    weight_shape[1] = K_;
     this->weight_buffer_.Reshape(weight_shape);
 
     vector<int> param_shape(1, K_/2+1);
@@ -149,21 +151,22 @@ void CirculantProjectionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bo
   Dtype* data_buffer = this->data_buffer_.mutable_cpu_data();
   int Kc = K_ / 2 + 1;
   
-  LOG(INFO)<<"Forward/Flip";
+  //LOG(INFO)<<"Forward/Flip";
   for(int i=0; i<M_; i++)
     for(int j=0; j<K_; j++)
       (data_buffer + i*K_)[j] = this->getFlipInput(bottom_data + i*K_, j);
         
-  LOG(INFO)<<"Forward/FFT";
+  // LOG(INFO)<<"Forward/FFT";
   caffe_cpu_fft<Dtype>(1, K_, weight, param_buffer);
   caffe_cpu_fft<Dtype>(M_, K_, data_buffer, conv_buffer);
-  LOG(INFO)<<"Forward/MUL";
+  //LOG(INFO)<<"Forward/MUL";
   for(int i=0; i<M_; i++)
   {
     caffe_mul<complex<Dtype> >(Kc, param_buffer, conv_buffer + i*Kc, conv_buffer + i*Kc);
   }
-  LOG(INFO)<<"FORWARD/IFFT";
+  //LOG(INFO)<<"FORWARD/IFFT";
   caffe_cpu_ifft<Dtype>(M_, K_, conv_buffer, data_buffer);
+    for (int i=0; i<M_*K_; i++) data_buffer[i] *= 1./K_;
   for(int i=0; i<M_; i++)
   {
     caffe_copy<Dtype>(N_, data_buffer + i*K_, top_data + i*N_);
@@ -202,6 +205,7 @@ void CirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& t
     caffe_cpu_fft<Dtype>(M_, K_, data_buffer, conv_buffer);
     caffe_mul<complex<Dtype> >(M_ * Kc, conv_buffer, diff_buffer, conv_buffer);
     caffe_cpu_ifft<Dtype>(M_, K_, conv_buffer, data_buffer);
+    for (int i=0; i<M_*K_; i++) data_buffer[i] *= 1./K_;
     caffe_cpu_gemv<Dtype>(CblasTrans, M_, K_, (Dtype)1., data_buffer,
 			  bias_multiplier_.cpu_data(), (Dtype)0.,
 			  this->blobs_[0]->mutable_cpu_diff());
