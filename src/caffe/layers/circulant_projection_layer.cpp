@@ -225,7 +225,7 @@ void CirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& t
 	(weight_buffer + i*K_)[j]=this->blobs_[2]->cpu_data()[j]>(Dtype)0.5?param_buffer[(K_+i-j)%K_]:-param_buffer[(K_+i-j)%K_];
     // Gradient with respect to bottom data
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, K_, N_, (Dtype)1.,
-        top_diff, weight_buffer, (Dtype)1.,
+        top_diff, weight_buffer, (Dtype)0.,
         bottom[0]->mutable_cpu_diff());
   }
 }
