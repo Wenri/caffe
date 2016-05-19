@@ -1,40 +1,41 @@
 #include <vector>
 
 #include "caffe/filler.hpp"
-#include "caffe/layers/circulant_projection_layer.hpp"
+#include "caffe/layers/skewcirculant_projection_layer.hpp"
 #include "caffe/util/math_functions.hpp"
+#define pi 3.14159265359
 
 namespace caffe {
 
 template <typename Dtype>
-void CirculantProjectionLayer<Dtype>::initCircParams() {
+void SkewcirculantProjectionLayer<Dtype>::initCircParams() {
     // Intialize the weight
     vector<int> weight_shape(1, K_);
     this->blobs_[0].reset(new Blob<Dtype>(weight_shape));
 
     // fill the weights
     shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(
-        this->layer_param_.circulant_projection_param().weight_filler()));
+        this->layer_param_.skewcirculant_projection_param().weight_filler()));
     weight_filler->Fill(this->blobs_[0].get());
 
     this->param_propagate_down_[0] = true;
 }
 
 template <typename Dtype>
-void CirculantProjectionLayer<Dtype>::initBiasParams() {
+void SkewcirculantProjectionLayer<Dtype>::initBiasParams() {
     vector<int> bias_shape(1, N_);
     this->blobs_[1].reset(new Blob<Dtype>(bias_shape));
     shared_ptr<Filler<Dtype> > bias_filler(GetFiller<Dtype>(
-	  this->layer_param_.circulant_projection_param().bias_filler()));
+	  this->layer_param_.skewcirculant_projection_param().bias_filler()));
     bias_filler->Fill(this->blobs_[1].get());
 
     this->param_propagate_down_[1] = true;
 }
   
 template <typename Dtype>
-void CirculantProjectionLayer<Dtype>::initFlipParams() {
+void SkewcirculantProjectionLayer<Dtype>::initFlipParams() {
   
-    vector<int> weight_shape(1, K_);    
+  vector<int> weight_shape(1, K_);    
     this->blobs_[2].reset(new Blob<Dtype>(weight_shape));  
 
     Dtype* flip_data = this->blobs_[2]->mutable_cpu_data();
@@ -52,14 +53,14 @@ void CirculantProjectionLayer<Dtype>::initFlipParams() {
 }
 
 template <typename Dtype>
-void CirculantProjectionLayer<Dtype>::reshapeBuffer() {
+void SkewcirculantProjectionLayer<Dtype>::reshapeBuffer() {
   //LOG(INFO)<<"Reshape"<<K_<<N_;
     vector<int> weight_shape(2);
     weight_shape[0] = K_;
     weight_shape[1] = K_;
     this->weight_buffer_.Reshape(weight_shape);
 
-    vector<int> param_shape(1, K_/2+1);
+    vector<int> param_shape(1, K_);
     this->param_buffer_.Reshape(param_shape);
 
     vector<int> data_shape(2);
@@ -69,12 +70,12 @@ void CirculantProjectionLayer<Dtype>::reshapeBuffer() {
 
     vector<int> conv_shape(2);
     conv_shape[0] = M_;
-    conv_shape[1] = K_/2+1;
+    conv_shape[1] = K_;
     this->conv_buffer_.Reshape(conv_shape);
 }
   
 template <typename Dtype>
-inline Dtype CirculantProjectionLayer<Dtype>::getFlipInput(const Dtype* input, int index) {
+inline Dtype SkewcirculantProjectionLayer<Dtype>::getFlipInput(const Dtype* input, int index) {
   const Dtype* flip_data = this->blobs_[2]->cpu_data();
   
   if(flip_data[index] > (Dtype)0.5)
@@ -84,15 +85,15 @@ inline Dtype CirculantProjectionLayer<Dtype>::getFlipInput(const Dtype* input, i
 }
 
 template <typename Dtype>
-void CirculantProjectionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
+void SkewcirculantProjectionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
-  const int num_output = this->layer_param_.circulant_projection_param().num_output();
-  bias_term_ = this->layer_param_.circulant_projection_param().bias_term();
+  const int num_output = this->layer_param_.skewcirculant_projection_param().num_output();
+  bias_term_ = this->layer_param_.skewcirculant_projection_param().bias_term();
   flip_term_ = true;
-  LOG(INFO)<<"CirculantProjectionLayerSetUp, N="<<num_output;
+  LOG(INFO)<<"SkewcirculantProjectionLayerSetUp, N="<<num_output;
   N_ = num_output;
   const int axis = bottom[0]->CanonicalAxisIndex(
-      this->layer_param_.circulant_projection_param().axis());
+      this->layer_param_.skewcirculant_projection_param().axis());
   // Dimensions starting from "axis" are "flattened" into a single
   // length K_ vector. For example, if bottom[0]'s shape is (N, C, H, W),
   // and axis == 1, N inner products with dimension CHW are performed.
@@ -112,14 +113,20 @@ void CirculantProjectionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bot
 
     LOG(INFO)<<"Init Circ Done";
   }  // parameter initialization
+  
+  vector<int> assist_shape(1,K_);
+  assist_.Reshape(assist_shape);
+  complex<Dtype>* assist = assist_.mutable_cpu_data();
+   //assist[1] = 1;
+  for (int i=0; i<K_; i++) assist[i] = std::exp(std::complex<Dtype>(0, i* pi /K_));//p3
 }
 
 template <typename Dtype>
-void CirculantProjectionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
+void SkewcirculantProjectionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   // Figure out the dimensions
   const int axis = bottom[0]->CanonicalAxisIndex(
-      this->layer_param_.circulant_projection_param().axis());
+      this->layer_param_.skewcirculant_projection_param().axis());
   const int new_K = bottom[0]->count(axis);
   CHECK_EQ(K_, new_K)
       << "Input size incompatible with inner product parameters.";
@@ -141,32 +148,36 @@ void CirculantProjectionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom
 }
 
 template <typename Dtype>
-void CirculantProjectionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+void SkewcirculantProjectionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   const Dtype* bottom_data = bottom[0]->cpu_data();
   Dtype* top_data = top[0]->mutable_cpu_data();
   const Dtype* weight = this->blobs_[0]->cpu_data();
   complex<Dtype>* conv_buffer = (this->conv_buffer_.mutable_cpu_data());
+  complex<Dtype>* diff_buffer = this->conv_buffer_.mutable_cpu_diff();
   complex<Dtype>* param_buffer = (this->param_buffer_.mutable_cpu_data()); 
   Dtype* data_buffer = this->data_buffer_.mutable_cpu_data();
-  int Kc = K_ / 2 + 1;
+  const complex<Dtype>* assist = assist_.cpu_data();
+  int Kc = K_ ;//1   / 2 + 1;
   
-  //LOG(INFO)<<"Forward/Flip";
+  LOG(INFO)<<"Forward/Flip";
   for(int i=0; i<M_; i++)
     for(int j=0; j<K_; j++)
       (data_buffer + i*K_)[j] = this->getFlipInput(bottom_data + i*K_, j);
         
   // LOG(INFO)<<"Forward/FFT";
-  caffe_cpu_fft<Dtype>(1, K_, weight, param_buffer);
-  caffe_cpu_fft<Dtype>(M_, K_, data_buffer, conv_buffer);
+  for (int i=0; i<K_; i++) conv_buffer[i]= weight[i] *assist[i];//2
+  caffe_cpu_fft<complex<Dtype>>(1, K_, conv_buffer, param_buffer);//3
+  for (int i=0; i<M_*K_; i++) diff_buffer[i]= data_buffer[i] *assist[i%K_];//2
+  caffe_cpu_fft<complex<Dtype>>(M_, K_, diff_buffer, conv_buffer);//4
   //LOG(INFO)<<"Forward/MUL";
   for(int i=0; i<M_; i++)
   {
     caffe_mul<complex<Dtype> >(Kc, param_buffer, conv_buffer + i*Kc, conv_buffer + i*Kc);
   }
   //LOG(INFO)<<"FORWARD/IFFT";
-  caffe_cpu_ifft<Dtype>(M_, K_, conv_buffer, data_buffer);
-    for (int i=0; i<M_*K_; i++) data_buffer[i] *= 1./K_;
+  caffe_cpu_ifft<complex<Dtype>>(M_, K_, conv_buffer, conv_buffer);//5
+  for (int i=0; i<M_*K_; i++) data_buffer[i] = std::real(conv_buffer[i]*std::conj(assist[i%K_])) * 1./K_;//8 
   for(int i=0; i<M_; i++)
   {
     caffe_copy<Dtype>(N_, data_buffer + i*K_, top_data + i*N_);
@@ -179,7 +190,7 @@ void CirculantProjectionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bo
 }
 
 template <typename Dtype>
-void CirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
+void SkewcirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down,
     const vector<Blob<Dtype>*>& bottom) {
   
@@ -189,7 +200,8 @@ void CirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& t
     complex<Dtype>* conv_buffer = this->conv_buffer_.mutable_cpu_data();
     complex<Dtype>* diff_buffer = this->conv_buffer_.mutable_cpu_diff();
     Dtype* data_buffer = this->data_buffer_.mutable_cpu_data(); 
-    int Kc = K_ / 2 + 1;
+  const complex<Dtype>* assist = assist_.cpu_data();
+    int Kc = K_ ;//1   / 2 + 1;
  
     // Gradient with respect to weight
   
@@ -198,14 +210,30 @@ void CirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& t
       caffe_copy<Dtype>(N_, top_diff + i*N_, data_buffer + i*K_);
       for(int j=N_; j<K_; j++) (data_buffer + i*K_)[j] = (Dtype)0;
     }
-    caffe_cpu_fft<Dtype>(M_, K_, data_buffer, diff_buffer);
+    for(int i=0; i<M_*K_; i++) conv_buffer[i] = data_buffer[i] *assist[i%K_];//2
+    caffe_cpu_fft<complex<Dtype>>(M_, K_, conv_buffer, conv_buffer);//3
+
+    // Expand version
+    // for(int i=0; i<M_; i++)
+    //   for(int j=0; j<K_; j++)
+    //     (data_buffer + i*K_)[(K_-j)%K_] = this->getFlipInput(bottom_data + i*K_, j) * (j==0? 1.: -1.);// 000
+    // for(int i=0; i<M_*K_; i++) diff_buffer[i] = data_buffer[i] *assist[i%K_];//4 000
+
+    // Conj version
     for(int i=0; i<M_; i++)
       for(int j=0; j<K_; j++)
-        (data_buffer + i*K_)[(K_-j)%K_] = this->getFlipInput(bottom_data + i*K_, j);
-    caffe_cpu_fft<Dtype>(M_, K_, data_buffer, conv_buffer);
+        (data_buffer + i*K_)[j] = this->getFlipInput(bottom_data + i*K_, j); // 000
+    //for(int i=0; i<M_*K_; i++) diff_buffer[i] = std::conj(data_buffer[i] *assist[i%K_]);//4 000 conj before fft
+    for(int i=0; i<M_*K_; i++) diff_buffer[i] = data_buffer[i] *assist[i%K_];//4 000
+     
+    caffe_cpu_fft<complex<Dtype>>(M_, K_, diff_buffer, diff_buffer);//5 000
+
+    for(int i=0; i<M_*K_; i++) diff_buffer[i] = std::conj(diff_buffer[i]); // conj after fft
+    
     caffe_mul<complex<Dtype> >(M_ * Kc, conv_buffer, diff_buffer, conv_buffer);
-    caffe_cpu_ifft<Dtype>(M_, K_, conv_buffer, data_buffer);
-    caffe_cpu_gemv<Dtype>(CblasTrans, M_, K_, (Dtype)1./K_, data_buffer,
+    caffe_cpu_ifft<complex<Dtype>>(M_, K_, conv_buffer, diff_buffer); //6
+    for (int i=0; i<M_*K_; i++) data_buffer[i] =std::real(diff_buffer[i] * std::conj(assist[i%K_]));//7 00
+    caffe_cpu_gemv<Dtype>(CblasTrans, M_, K_, (Dtype)1./K_, data_buffer,//00
 			  bias_multiplier_.cpu_data(), (Dtype)1.,
 			  this->blobs_[0]->mutable_cpu_diff());
   }
@@ -222,7 +250,9 @@ void CirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& t
     Dtype* weight_buffer = this->weight_buffer_.mutable_cpu_data();
      for(int i=0; i<K_; i++)
       for(int j=0; j<K_; j++)
-	(weight_buffer + i*K_)[j]=this->blobs_[2]->cpu_data()[j]>(Dtype)0.5?param_buffer[(K_+i-j)%K_]:-param_buffer[(K_+i-j)%K_];
+	(weight_buffer + i*K_)[j]=
+	  (this->blobs_[2]->cpu_data()[j]>(Dtype)0.5?param_buffer[(K_+i-j)%K_]:-param_buffer[(K_+i-j)%K_])
+	  * (i<j? -1.: 1.);// 1 000
     // Gradient with respect to bottom data
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, K_, N_, (Dtype)1.,
         top_diff, weight_buffer, (Dtype)0.,
@@ -231,10 +261,10 @@ void CirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& t
 }
 
 #ifdef CPU_ONLY
-STUB_GPU(CirculantProjectionLayer);
+STUB_GPU(SkewcirculantProjectionLayer);
 #endif
 
-INSTANTIATE_CLASS(CirculantProjectionLayer);
-REGISTER_LAYER_CLASS(CirculantProjection);
+INSTANTIATE_CLASS(SkewcirculantProjectionLayer);
+REGISTER_LAYER_CLASS(SkewcirculantProjection);
 
 }  // namespace caffe

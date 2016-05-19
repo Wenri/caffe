@@ -102,10 +102,10 @@ layer {
   }
 }
 layer {
-  name: "ip1"
+  name: "circ1"
   type: "CirculantProjection"
   bottom: "pool2"
-  top: "ip1"
+  top: "circ1"
   param {
     lr_mult: 1
   }
@@ -113,6 +113,29 @@ layer {
     lr_mult: 2
   }
   circulant_projection_param {
+    num_output: 500
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.1
+    }
+  }
+}
+layer {
+  name: "ip1"
+  type: "SkewcirculantProjection"
+  bottom: "circ1"
+  top: "ip1"
+  param {
+    lr_mult: 1
+  }
+  param {
+    lr_mult: 2
+  }
+  skewcirculant_projection_param {
     num_output: 500
     weight_filler {
       type: "gaussian"
