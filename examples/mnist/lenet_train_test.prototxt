@@ -107,7 +107,7 @@ layer {
   bottom: "pool2"
   top: "ip1"
   param {
-    lr_mult: 0
+    lr_mult: 1
     decay_mult: 1
   }
   param {
