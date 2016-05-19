@@ -34,7 +34,7 @@ void CirculantProjectionLayer<Dtype>::initBiasParams() {
 template <typename Dtype>
 void CirculantProjectionLayer<Dtype>::initFlipParams() {
   
-  vector<int> weight_shape(1, K_);    
+    vector<int> weight_shape(1, K_);    
     this->blobs_[2].reset(new Blob<Dtype>(weight_shape));  
 
     Dtype* flip_data = this->blobs_[2]->mutable_cpu_data();
@@ -205,9 +205,8 @@ void CirculantProjectionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& t
     caffe_cpu_fft<Dtype>(M_, K_, data_buffer, conv_buffer);
     caffe_mul<complex<Dtype> >(M_ * Kc, conv_buffer, diff_buffer, conv_buffer);
     caffe_cpu_ifft<Dtype>(M_, K_, conv_buffer, data_buffer);
-    for (int i=0; i<M_*K_; i++) data_buffer[i] *= 1./K_;
-    caffe_cpu_gemv<Dtype>(CblasTrans, M_, K_, (Dtype)1., data_buffer,
-			  bias_multiplier_.cpu_data(), (Dtype)0.,
+    caffe_cpu_gemv<Dtype>(CblasTrans, M_, K_, (Dtype)1./K_, data_buffer,
+			  bias_multiplier_.cpu_data(), (Dtype)1.,
 			  this->blobs_[0]->mutable_cpu_diff());
   }
   if (bias_term_ && this->param_propagate_down_[1]) {
