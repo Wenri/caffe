@@ -402,10 +402,10 @@ message LayerParameter {
   optional ThresholdParameter threshold_param = 128;
   optional TileParameter tile_param = 138;
   optional WindowDataParameter window_data_param = 129;
-  optional LayerOpParameter layer_op_param = 145;
-  optional CirculantProjectionParameter circulant_projection_param = 146;
-  optional KroneckerProductParameter kronecker_product_param = 147;
-  optional SkewcirculantProjectionParameter skewcirculant_projection_param = 148;
+  optional LayerOpParameter layer_op_param = 146;
+  optional CirculantProjectionParameter circulant_projection_param = 147;
+  optional KroneckerProductParameter kronecker_product_param = 148;
+  optional SkewcirculantProjectionParameter skewcirculant_projection_param = 149;
 }
 
 // Message that stores parameters used to apply transformation
