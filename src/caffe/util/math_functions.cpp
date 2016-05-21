@@ -82,28 +82,6 @@ void caffe_add_scalar(const int N, const double alpha, double* Y) {
   }
 }
 
-template <typename Dtype>
-void caffe_copy(const int N, const Dtype* X, Dtype* Y) {
-  if (X != Y) {
-    if (Caffe::mode() == Caffe::GPU) {
-#ifndef CPU_ONLY
-      // NOLINT_NEXT_LINE(caffe/alt_fn)
-      CUDA_CHECK(cudaMemcpy(Y, X, sizeof(Dtype) * N, cudaMemcpyDefault));
-#else
-      NO_GPU;
-#endif
-    } else {
-      memcpy(Y, X, sizeof(Dtype) * N);  // NOLINT(caffe/alt_fn)
-    }
-  }
-}
-
-template void caffe_copy<int>(const int N, const int* X, int* Y);
-template void caffe_copy<unsigned int>(const int N, const unsigned int* X,
-    unsigned int* Y);
-template void caffe_copy<float>(const int N, const float* X, float* Y);
-template void caffe_copy<double>(const int N, const double* X, double* Y);
-
 template <>
 void caffe_scal<float>(const int N, const float alpha, float *X) {
   cblas_sscal(N, alpha, X, 1);
@@ -162,6 +140,19 @@ void caffe_mul<double>(const int n, const double* a, const double* b,
   vdMul(n, a, b, y);
 }
 
+
+template <>
+void caffe_mul<complex<float>>(const int n, const std::complex<float>* a, const complex<float>* b,
+				    complex<float>* y) {
+  vcMul(n, a, b, y);
+}
+
+template <>
+void caffe_mul<complex<double>>(const int n, const std::complex<double>* a, const complex<double>* b,
+				     complex<double>* y) {
+  vzMul(n, a, b, y);
+}
+
 template <>
 void caffe_div<float>(const int n, const float* a, const float* b,
     float* y) {
@@ -204,6 +195,17 @@ void caffe_exp<float>(const int n, const float* a, float* y) {
 template <>
 void caffe_exp<double>(const int n, const double* a, double* y) {
   vdExp(n, a, y);
+}
+
+  
+template <>
+void caffe_exp<std::complex<float>>(const int n, const std::complex<float>* a, std::complex<float>* y) {
+  vcExp(n, a, y);
+}
+
+template <>
+void caffe_exp<std::complex<double>>(const int n, const std::complex<double>* a, std::complex<double>* y) {
+  vzExp(n, a, y);
 }
 
 template <>
@@ -325,6 +327,28 @@ void caffe_rng_bernoulli<double>(const int n, const double p, unsigned int* r);
 template
 void caffe_rng_bernoulli<float>(const int n, const float p, unsigned int* r);
 
+template <typename Dtype>
+void caffe_rng_bernoulli(const int n, const Dtype p,
+			 std::function<void (int, bool)> func) {
+  CHECK_GE(n, 0);
+  CHECK_GE(p, 0);
+  CHECK_LE(p, 1);
+  boost::bernoulli_distribution<Dtype> random_distribution(p);
+  boost::variate_generator<caffe::rng_t*, boost::bernoulli_distribution<Dtype> >
+      variate_generator(caffe_rng(), random_distribution);
+  for (int i = 0; i < n; ++i) {
+    func(i, variate_generator());
+  }
+}
+
+template
+void caffe_rng_bernoulli<double>(const int n, const double p,
+				 std::function<void (int, bool)> func);
+
+template
+void caffe_rng_bernoulli<float>(const int n, const float p,
+				std::function<void (int, bool)> func);
+
 template <>
 float caffe_cpu_strided_dot<float>(const int n, const float* x, const int incx,
     const float* y, const int incy) {
@@ -347,6 +371,231 @@ float caffe_cpu_dot<float>(const int n, const float* x, const float* y);
 
 template
 double caffe_cpu_dot<double>(const int n, const double* x, const double* y);
+
+
+template <>
+void caffe_cpu_fft<float>(const int howmany, const int n, const float* x, complex<float>* y) {
+  /* FFTW plan handle */
+  fftwf_plan hplan = 0;
+  const float *in = x;
+  fftwf_complex *out = reinterpret_cast<fftwf_complex *>(y);
+  int Ni[] = {n};
+  int No[] = {n/2+1};
+
+  hplan = fftwf_plan_many_dft_r2c(1, Ni, howmany,
+				  const_cast<float *>(in), Ni, 1, n,
+                                  out, No, 1, n/2+1,
+                                  FFTW_ESTIMATE);
+  if (0 == hplan) goto failed;
+
+  fftwf_execute(hplan);
+
+  fftwf_destroy_plan(hplan);
+
+ failed:
+
+  return;
+}
+
+
+template <>
+void caffe_cpu_ifft<float>(const int howmany, const int n, const complex<float>* x, float* y){
+  /* FFTW plan handle */
+  fftwf_plan hplan = 0;
+  const fftwf_complex *in = reinterpret_cast<const fftwf_complex *>(x);
+  float *out = y;
+  int Ni[] = {n/2+1};
+  int No[] = {n};
+
+  hplan = fftwf_plan_many_dft_c2r(1, No, howmany, 
+    	                          const_cast<fftwf_complex *>(in), Ni, 1, n/2+1,
+				  out, No, 1, n, 
+				  FFTW_ESTIMATE);
+  if (0 == hplan) goto failed;
+
+  fftwf_execute(hplan);
+  
+  fftwf_destroy_plan(hplan);
+
+ failed:
+
+  return;
+
+}
+
+template <>
+void caffe_cpu_fft<double>(const int howmany, const int n, const double* x, complex<double>* y) {
+  /* FFTW plan handle */
+  fftw_plan hplan = 0;
+  const double *in = x;
+  fftw_complex *out = reinterpret_cast<fftw_complex *>(y);
+  int Ni[] = {n};
+  int No[] = {n/2+1};
+
+  hplan = fftw_plan_many_dft_r2c(1, Ni, howmany,
+				  const_cast<double *>(in), Ni, 1, n,
+                                  out, No, 1, n/2+1,
+                                  FFTW_ESTIMATE);
+  if (0 == hplan) goto failed;
+
+  fftw_execute(hplan);
+
+  fftw_destroy_plan(hplan);
+
+ failed:
+
+  return;
+}
+
+template <>
+void caffe_cpu_ifft<double>(const int howmany, const int n, const complex<double>* x, double* y){
+  /* FFTW plan handle */
+  fftw_plan hplan = 0;
+  const fftw_complex *in = reinterpret_cast<const fftw_complex *>(x);
+  double *out = y;
+  int Ni[] = {n/2+1};
+  int No[] = {n};
+
+  hplan = fftw_plan_many_dft_c2r(1, No, howmany, 
+    	                          const_cast<fftw_complex *>(in), Ni, 1, n/2+1,
+				  out, No, 1, n, 
+				  FFTW_ESTIMATE);
+  if (0 == hplan) goto failed;
+
+  fftw_execute(hplan);
+  
+  fftw_destroy_plan(hplan);
+
+ failed:
+
+  return;
+
+}
+
+template <>
+void caffe_cpu_fft<std::complex<float>>(const int howmany, const int n, const std::complex<float>* x, std::complex<float>* y) {
+  /* FFTW plan handle */
+  fftwf_plan hplan = 0;
+  const fftwf_complex *in = reinterpret_cast<const fftwf_complex *>(x);
+  fftwf_complex *out = reinterpret_cast<fftwf_complex *>(y);
+  int Ni[] = {n};
+  int No[] = {n};
+
+  hplan = fftwf_plan_many_dft(1, Ni, howmany,
+				  const_cast<fftwf_complex *>(in), Ni, 1, n,
+                                  out, No, 1, n,
+			          FFTW_FORWARD, FFTW_ESTIMATE);
+  if (0 == hplan) goto failed;
+
+  fftwf_execute(hplan);
+
+  fftwf_destroy_plan(hplan);
+
+ failed:
+
+  return;
+}
+
+
+template <>
+void caffe_cpu_fft<std::complex<double>>(const int howmany, const int n, const std::complex<double>* x, std::complex<double>* y) {
+  /* FFTW plan handle */
+  fftw_plan hplan = 0;
+  const fftw_complex *in = reinterpret_cast<const fftw_complex *>(x);
+  fftw_complex *out = reinterpret_cast<fftw_complex *>(y);
+  int Ni[] = {n};
+  int No[] = {n};
+
+  
+  hplan = fftw_plan_many_dft(1, Ni, howmany, 
+    	                          const_cast<fftw_complex *>(in), Ni, 1, n,
+				  out, No, 1, n, 
+			          FFTW_FORWARD, FFTW_ESTIMATE);
+  
+  if (0 == hplan) goto failed;
+
+  fftw_execute(hplan);
+
+  fftw_destroy_plan(hplan);
+
+ failed:
+
+  return;
+}
+
+
+
+template <>
+void caffe_cpu_ifft<std::complex<float>>(const int howmany, const int n, const std::complex<float>* x, std::complex<float>* y){
+  /* FFTW plan handle */
+  fftwf_plan hplan = 0;
+  const fftwf_complex *in = reinterpret_cast<const fftwf_complex *>(x);
+  fftwf_complex *out =reinterpret_cast<fftwf_complex *>(y);
+  int Ni[] = {n};
+  int No[] = {n};
+
+  hplan = fftwf_plan_many_dft(1, No, howmany, 
+    	                          const_cast<fftwf_complex *>(in), Ni, 1, n,
+				  out, No, 1, n, 
+			          FFTW_BACKWARD, FFTW_ESTIMATE);
+  if (0 == hplan) goto failed;
+
+  fftwf_execute(hplan);
+  
+  fftwf_destroy_plan(hplan);
+
+ failed:
+
+  return;
+
+}
+  
+template <>
+void caffe_cpu_ifft<std::complex<double>>(const int howmany, const int n, const std::complex<double>* x, std::complex<double>* y){
+  /* FFTW plan handle */
+  fftw_plan hplan = 0;
+  const fftw_complex *in = reinterpret_cast<const fftw_complex *>(x);
+  fftw_complex *out = reinterpret_cast<fftw_complex *>(y);
+  int Ni[] = {n};
+  int No[] = {n};
+
+  hplan = fftw_plan_many_dft(1, No, howmany, 
+    	                          const_cast<fftw_complex *>(in), Ni, 1, n,
+				  out, No, 1, n, 
+			          FFTW_BACKWARD, FFTW_ESTIMATE);
+  if (0 == hplan) goto failed;
+
+  fftw_execute(hplan);
+  
+  fftw_destroy_plan(hplan);
+
+ failed:
+
+  return;
+
+}
+
+template <>
+int caffe_cpu_hamming_distance<float>(const int n, const float* x,
+                                  const float* y) {
+  int dist = 0;
+  for (int i = 0; i < n; ++i) {
+    dist += __builtin_popcount(static_cast<uint32_t>(x[i]) ^
+                               static_cast<uint32_t>(y[i]));
+  }
+  return dist;
+}
+
+template <>
+int caffe_cpu_hamming_distance<double>(const int n, const double* x,
+                                   const double* y) {
+  int dist = 0;
+  for (int i = 0; i < n; ++i) {
+    dist += __builtin_popcountl(static_cast<uint64_t>(x[i]) ^
+                                static_cast<uint64_t>(y[i]));
+  }
+  return dist;
+}
 
 template <>
 float caffe_cpu_asum<float>(const int n, const float* x) {
