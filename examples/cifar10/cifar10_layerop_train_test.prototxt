@@ -193,7 +193,7 @@ layer {
 }
 layer {
  name: "kp1"
- type: "KroneckerProduct"
+ type: "LayerOp"
  bottom: "pool3"
  top: "kp1"
  param {
@@ -204,7 +204,7 @@ layer {
    lr_mult: 2
    decay_mult: 0
  }
- kronecker_product_param {
+ layer_op_param {
    num_output: 10
    weight_filler {
      type: "gaussian"
