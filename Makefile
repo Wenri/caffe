@@ -405,6 +405,10 @@ ifeq ($(USE_FFTW), 1)
 	LIBRARY_DIRS += $(FFTW_LIB)
 endif
 
+ifeq ($(USE_TAMP), 1)
+	LIBRARIES += tampc
+endif
+
 INCLUDE_DIRS += $(BLAS_INCLUDE)
 LIBRARY_DIRS += $(BLAS_LIB)
 

@@ -3,7 +3,7 @@
 TOOLS=./build/tools
 
 $TOOLS/caffe.bin train \
-    --solver=examples/cifar10/cifar10_kp_solver.prototxt
+    --solver=examples/cifar10/cifar10_layerop_solver.prototxt
 
 # # reduce learning rate by factor of 10
 # $TOOLS/caffe.bin train \

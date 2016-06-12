@@ -3,6 +3,12 @@
 #include "caffe/filler.hpp"
 #include "caffe/layers/layerop.hpp"
 #include "caffe/util/math_functions.hpp"
+#include "structured/lib/ProcessorTape.h"
+#include "structured/interface/caffe/TypedData_Caffe.h"
+#include "structured/interface/caffe/layerop.hpp"
+#include "structured/lib/AdjointPoint.h"
+
+using namespace structured;
 
 namespace caffe {
 
@@ -31,7 +37,12 @@ void LayerOpLayer<Dtype>::initParams() {
 template <typename Dtype>
 void LayerOpLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
+  ProcessorRepresentative<Dtype> representative;
+  Environment env;
   const int num_output = this->layer_param_.layer_op_param().num_output();
+  
+  this->processor.reset(representative(&env));
+  
   bias_term_ = this->layer_param_.layer_op_param().bias_term();
   flip_term_ = true;
   LOG(INFO)<<"LayerOpLayerSetUp, N="<<num_output;
@@ -47,9 +58,8 @@ void LayerOpLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   if (this->blobs_.size() > 0) {
     LOG(INFO) << "Skipping parameter initialization";
   } else {
-    this->blobs_.resize(3);
+    this->blobs_.resize(2);
     this->param_propagate_down_.resize(this->blobs_.size(), false);
-
     this->initParams();
   }  // parameter initialization
 }
@@ -76,12 +86,32 @@ void LayerOpLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   vector<int> bias_shape(1, M_);
   bias_multiplier_.Reshape(bias_shape);
   caffe_set(M_, Dtype(1), bias_multiplier_.mutable_cpu_data());
+  
 }
 
 template <typename Dtype>
 void LayerOpLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   Dtype* top_data = top[0]->mutable_cpu_data();
+  ProcessorTape atape;
+  ExecutiveCoreCaffe core(this->processor.get());
+  LOG(INFO)<<"Fwd Method called.\n";
+  for(auto in : bottom){
+    atape.input.push_back( std::shared_ptr< BufferedData > (
+	       new TypedDataCaffe<Dtype>(*in)
+    ));
+  }
+  for(auto in : this->blobs_){
+    atape.input.push_back( std::shared_ptr< BufferedData > (
+	       new TypedDataCaffe<Dtype>(*in)
+    ));
+  }
+  for(auto out : top){
+    atape.output.push_back( std::shared_ptr< BufferedData > (
+	       new TypedDataCaffe<Dtype>(*out)
+    ));
+  }
+  functor::LayerOpFunctor<CPUDevice>()(CPUDevice(), &core, &atape);
   if (bias_term_) {
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, N_, 1, (Dtype)1.,
         bias_multiplier_.cpu_data(),

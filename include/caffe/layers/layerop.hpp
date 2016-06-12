@@ -6,6 +6,7 @@
 #include "caffe/blob.hpp"
 #include "caffe/layer.hpp"
 #include "caffe/proto/caffe.pb.h"
+#include "structured/lib/ProcessorBase.h"
 
 namespace caffe {
 
@@ -54,6 +55,7 @@ private:
   
   Blob<Dtype> weight_buffer_;
   Blob<complex<Dtype> > param_buffer_;
+  std::unique_ptr<structured::ProcessorBase> processor;
 };
 
 }  // namespace caffe
