@@ -45,7 +45,6 @@ void LayerOpLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   
   bias_term_ = this->layer_param_.layer_op_param().bias_term();
   flip_term_ = true;
-  LOG(INFO)<<"LayerOpLayerSetUp, N="<<num_output;
   N_ = num_output;
   const int axis = bottom[0]->CanonicalAxisIndex(
       this->layer_param_.layer_op_param().axis());
@@ -53,6 +52,7 @@ void LayerOpLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   // length K_ vector. For example, if bottom[0]'s shape is (N, C, H, W),
   // and axis == 1, N inner products with dimension CHW are performed.
   K_ = bottom[0]->count(axis);
+  LOG(INFO)<<"LayerOpLayerSetUp, N="<<num_output<<", K="<<K_;
   // Check if we need to set up the weights
   CHECK_LE(N_, K_) << "Currently only N<=K supported.";
   if (this->blobs_.size() > 0) {
@@ -92,7 +92,6 @@ void LayerOpLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 template <typename Dtype>
 void LayerOpLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
-  Dtype* top_data = top[0]->mutable_cpu_data();
   ProcessorTape atape;
   ExecutiveCoreCaffe core(this->processor.get());
   LOG(INFO)<<"Fwd Method called.\n";
@@ -113,6 +112,7 @@ void LayerOpLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   }
   functor::LayerOpFunctor<CPUDevice>()(CPUDevice(), &core, &atape);
   if (bias_term_) {
+    Dtype* top_data = top[0]->mutable_cpu_data();
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, N_, 1, (Dtype)1.,
         bias_multiplier_.cpu_data(),
         this->blobs_[1]->cpu_data(), (Dtype)1., top_data);
@@ -123,6 +123,33 @@ template <typename Dtype>
 void LayerOpLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down,
     const vector<Blob<Dtype>*>& bottom) {
+  ProcessorTape atape;
+  ProcessorTape btape;
+  ExecutiveCoreCaffe core(this->processor.get());
+  LOG(INFO)<<"Back Method called.\n";
+  TypedDataCaffe<Dtype> * typedData;
+  for(auto in : bottom){
+    typedData = new TypedDataCaffe<Dtype>(*in);
+    atape.input.push_back(std::shared_ptr<BufferedData>(typedData));
+    typedData = new TypedDataCaffe<Dtype>(*in);
+    typedData->swapBuffers();
+    btape.output.push_back(std::shared_ptr<BufferedData>(typedData));
+  }
+  for(auto in : this->blobs_){
+    typedData = new TypedDataCaffe<Dtype>(*in);
+    atape.input.push_back(std::shared_ptr<BufferedData>(typedData));
+    typedData = new TypedDataCaffe<Dtype>(*in);
+    typedData->swapBuffers();
+    btape.output.push_back(std::shared_ptr<BufferedData>(typedData));
+  }
+  for(auto out : top){
+    typedData = new TypedDataCaffe<Dtype>(*out);
+    atape.output.push_back(std::shared_ptr<BufferedData>(typedData));
+    typedData = new TypedDataCaffe<Dtype>(*out);
+    typedData->swapBuffers();
+    btape.input.push_back(std::shared_ptr<BufferedData>(typedData));
+  }
+  functor::LayerOpFunctor<CPUDevice>()(CPUDevice(), &core, &atape, &btape);
   
   if (this->param_propagate_down_[0]) {
 
