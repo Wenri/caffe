@@ -175,7 +175,7 @@ INCLUDE_DIRS += $(BUILD_INCLUDE_DIR) ./src ./include
 ifneq ($(CPU_ONLY), 1)
 	INCLUDE_DIRS += $(CUDA_INCLUDE_DIR)
 	LIBRARY_DIRS += $(CUDA_LIB_DIR)
-	LIBRARIES := cudart cublas curand
+	LIBRARIES := cudart cublas curand cufft
 endif
 
 LIBRARIES += glog gflags protobuf boost_system boost_filesystem m hdf5_hl hdf5
@@ -246,6 +246,7 @@ DOXYGEN_SOURCES += $(DOXYGEN_CONFIG_FILE)
 UNAME := $(shell uname -s)
 ifeq ($(UNAME), Linux)
 	LINUX := 1
+	# CLANG := 1
 else ifeq ($(UNAME), Darwin)
 	OSX := 1
 	OSX_MAJOR_VERSION := $(shell sw_vers -productVersion | cut -f 1 -d .)
@@ -253,7 +254,11 @@ else ifeq ($(UNAME), Darwin)
 endif
 
 # Linux
-ifeq ($(LINUX), 1)
+ifeq ($(CLANG), 1)
+	CXX := /usr/bin/clang++-3.6
+	CXXFLAGS += -stdlib=libc++
+	LIBRARIES += boost_thread
+else ifeq ($(LINUX), 1)
 	CXX ?= /usr/bin/g++
 	GCCVERSION := $(shell $(CXX) -dumpversion | cut -f1,2 -d.)
 	# older versions of gcc are too dumb to build boost with -Wuninitalized
@@ -319,7 +324,7 @@ ifeq ($(DEBUG), 1)
 	COMMON_FLAGS += -DDEBUG -g -O0
 	NVCCFLAGS += -G
 else
-	COMMON_FLAGS += -DNDEBUG -O2
+	COMMON_FLAGS += -DNDEBUG -O3
 endif
 
 # cuDNN acceleration configuration.
@@ -365,7 +370,7 @@ ifeq ($(BLAS), mkl)
 	LIBRARIES += mkl_rt
 	COMMON_FLAGS += -DUSE_MKL
 	MKLROOT ?= /opt/intel/mkl
-	BLAS_INCLUDE ?= $(MKLROOT)/include
+	BLAS_INCLUDE ?= $(MKLROOT)/include $(MKLROOT)/include/fftw
 	BLAS_LIB ?= $(MKLROOT)/lib $(MKLROOT)/lib/intel64
 else ifeq ($(BLAS), open)
 	# OpenBLAS
@@ -392,6 +397,18 @@ else
 		endif
 	endif
 endif
+
+ifeq ($(USE_FFTW), 1)
+	LIBRARIES += fftw3 fftw3f
+	COMMON_FLAGS += -DUSE_FFTW
+	INCLUDE_DIRS += $(FFTW_INCLUDE)
+	LIBRARY_DIRS += $(FFTW_LIB)
+endif
+
+ifeq ($(USE_TAMP), 1)
+	LIBRARIES += tampc
+endif
+
 INCLUDE_DIRS += $(BLAS_INCLUDE)
 LIBRARY_DIRS += $(BLAS_LIB)
 
@@ -402,12 +419,11 @@ CXXFLAGS += -MMD -MP
 
 # Complete build flags.
 COMMON_FLAGS += $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir))
-CXXFLAGS += -pthread -fPIC $(COMMON_FLAGS) $(WARNINGS)
-NVCCFLAGS += -ccbin=$(CXX) -Xcompiler -fPIC $(COMMON_FLAGS)
+CXXFLAGS += -std=c++1y -pthread -fPIC $(COMMON_FLAGS) $(WARNINGS)
+NVCCFLAGS += -D__CUDACC__ -std=c++11 -ccbin=$(CXX) -Xcompiler -fPIC $(COMMON_FLAGS)
 # mex may invoke an older gcc that is too liberal with -Wuninitalized
 MATLAB_CXXFLAGS := $(CXXFLAGS) -Wno-uninitialized
 LINKFLAGS += -pthread -fPIC $(COMMON_FLAGS) $(WARNINGS)
-
 USE_PKG_CONFIG ?= 0
 ifeq ($(USE_PKG_CONFIG), 1)
 	PKG_CONFIG := $(shell pkg-config opencv --libs)

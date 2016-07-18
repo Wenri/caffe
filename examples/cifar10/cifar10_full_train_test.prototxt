@@ -9,6 +9,13 @@ layer {
   }
   transform_param {
     mean_file: "examples/cifar10/mean.binaryproto"
+    # for images in particular horizontal mirroring and random cropping
+    # can be done as simple data augmentations.
+    mirror: 1  # 1 = on, 0 = off
+    # crop a `crop_size` x `crop_size` patch:
+    # - at random during training
+    # - from the center during testing
+    # crop_size: 24
   }
   data_param {
     source: "examples/cifar10/cifar10_train_lmdb"
@@ -26,6 +33,13 @@ layer {
   }
   transform_param {
     mean_file: "examples/cifar10/mean.binaryproto"
+    # for images in particular horizontal mirroring and random cropping
+    # can be done as simple data augmentations.
+    # mirror: 1  # 1 = on, 0 = off
+    # crop a `crop_size` x `crop_size` patch:
+    # - at random during training
+    # - from the center during testing
+    # crop_size: 24
   }
   data_param {
     source: "examples/cifar10/cifar10_test_lmdb"
