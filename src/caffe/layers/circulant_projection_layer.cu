@@ -126,7 +126,7 @@ void CirculantProjectionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& t
     caffe_gpu_mul<complex<Dtype> >(M_ * Kc, conv_buffer, diff_buffer, conv_buffer);
     caffe_gpu_ifft<Dtype>(M_, K_, conv_buffer, data_buffer);
     caffe_gpu_gemv<Dtype>(CblasTrans, M_, K_, (Dtype)1./K_, data_buffer,
-			  bias_multiplier_.gpu_data(), (Dtype)0.,
+			  bias_multiplier_.gpu_data(), (Dtype)1.,
 			  this->blobs_[0]->mutable_gpu_diff());
   }
   if (propagate_down[0]) {
