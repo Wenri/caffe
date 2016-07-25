@@ -1,9 +1,9 @@
 #!/usr/bin/env sh
 
-TOOLS=./build/tools
+TOOLS=../recaffe/build/tools
 
-$TOOLS/caffe.bin train \
-    --solver=examples/cifar10/cifar10_circ_solver.prototxt
+#$TOOLS/caffe.bin train \
+#    --solver=examples/cifar10/cifar10_circ_solver.prototxt
 
 # reduce learning rate by factor of 10
 # $TOOLS/caffe.bin train \

@@ -55,9 +55,10 @@ private:
   
   Blob<Dtype> data_buffer_;
   Blob<complex<Dtype> > conv_buffer_;
-
+  
   Blob<Dtype> weight_buffer_;
   Blob<complex<Dtype> > param_buffer_;
+ 
 
 };
 

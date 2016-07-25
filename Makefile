@@ -277,7 +277,7 @@ endif
 ifeq ($(OSX), 1)
 	CXX := /usr/bin/clang++
 	ifneq ($(CPU_ONLY), 1)
-		CUDA_VERSION := $(shell $(CUDA_DIR)/bin/nvcc -V | grep -o 'release \d' | grep -o '\d')
+		CUDA_VERSION := $(shell $(CUDA_DIR)/bin/nvcc -V | grep -o 'release [0-9.]*' | tr -d '[a-z ]')
 		ifeq ($(shell echo | awk '{exit $(CUDA_VERSION) < 7.0;}'), 1)
 			CXXFLAGS += -stdlib=libstdc++
 			LINKFLAGS += -stdlib=libstdc++
@@ -405,6 +405,10 @@ ifeq ($(USE_FFTW), 1)
 	LIBRARY_DIRS += $(FFTW_LIB)
 endif
 
+ifeq ($(USE_TAMP), 1)
+	LIBRARIES += tampc
+endif
+
 INCLUDE_DIRS += $(BLAS_INCLUDE)
 LIBRARY_DIRS += $(BLAS_LIB)
 
@@ -420,7 +424,6 @@ NVCCFLAGS += -D__CUDACC__ -std=c++11 -ccbin=$(CXX) -Xcompiler -fPIC $(COMMON_FLA
 # mex may invoke an older gcc that is too liberal with -Wuninitalized
 MATLAB_CXXFLAGS := $(CXXFLAGS) -Wno-uninitialized
 LINKFLAGS += -pthread -fPIC $(COMMON_FLAGS) $(WARNINGS)
-
 USE_PKG_CONFIG ?= 0
 ifeq ($(USE_PKG_CONFIG), 1)
 	PKG_CONFIG := $(shell pkg-config opencv --libs)

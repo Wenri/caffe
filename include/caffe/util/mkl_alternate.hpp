@@ -32,6 +32,14 @@ extern "C" {
   inline void vd##name( \
       const int n, const double* a, double* y) { \
     v##name<double>(n, a, y); \
+  } \
+  inline void vc##name( \
+      const int n, const std::complex<float>* a, std::complex<float>* y) { \
+    v##name<std::complex<float> >(n, a, y); \
+  } \
+  inline void vz##name( \
+      const int n, const std::complex<double>* a, std::complex<double>* y) { \
+    v##name<std::complex<double> >(n, a, y); \
   }
 
 DEFINE_VSL_UNARY_FUNC(Sqr, y[i] = a[i] * a[i]);

@@ -192,10 +192,10 @@ layer {
   }
 }
 layer {
- name: "kp1"
- type: "KroneckerProduct"
+ name: "circ1"
+ type: "CirculantProjection"
  bottom: "pool3"
- top: "kp1"
+ top: "circ1"
  param {
    lr_mult: 1
 #   decay_mult: 1
@@ -204,11 +204,11 @@ layer {
    lr_mult: 2
    decay_mult: 0
  }
- kronecker_product_param {
-   num_output: 10
+ circulant_projection_param {
+   num_output: 1024
    weight_filler {
      type: "gaussian"
-     std: 0.1
+     std: 0.01
    }
    bias_filler {
      type: "constant"
@@ -216,9 +216,55 @@ layer {
  }
 }
 layer {
+ name: "acdc1"
+ type: "CirculantProjection"
+ bottom: "circ1"
+ top: "acdc1"
+ param {
+   lr_mult: 1
+#   decay_mult: 1
+ } 
+ param {
+   lr_mult: 2
+   decay_mult: 0
+ } 
+ circulant_projection_param {
+   num_output: 64
+   weight_filler {
+     type: "gaussian"
+     std: 0.01
+   } 
+   bias_filler {
+     type: "constant"
+   }
+ }   
+}
+layer {
+  name: "ip2"
+  type: "InnerProduct"
+  bottom: "acdc1"
+  top: "ip2"
+  param {
+    lr_mult: 1
+  }
+  param {
+    lr_mult: 2
+  }
+  inner_product_param {
+    num_output: 10
+    weight_filler {
+      type: "gaussian"
+      std: 0.1
+    }
+    bias_filler {
+      type: "constant"
+    }
+  }
+}
+layer {
   name: "accuracy"
   type: "Accuracy"
-  bottom: "kp1"
+  bottom: "ip2"
   bottom: "label"
   top: "accuracy"
   include {
@@ -228,7 +274,7 @@ layer {
 layer {
   name: "loss"
   type: "SoftmaxWithLoss"
-  bottom: "kp1"
+  bottom: "ip2"
   bottom: "label"
   top: "loss"
 }

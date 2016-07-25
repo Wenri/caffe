@@ -40,14 +40,14 @@ Optional dependencies:
 
 * [OpenCV](http://opencv.org/) >= 2.4 including 3.0
 * IO libraries: `lmdb`, `leveldb` (note: leveldb requires `snappy`)
-* cuDNN for GPU acceleration (v4)
+* cuDNN for GPU acceleration (v5)
 
 Pycaffe and Matcaffe interfaces have their own natural needs.
 
 * For Python Caffe:  `Python 2.7` or `Python 3.3+`, `numpy (>= 1.7)`, boost-provided `boost.python`
 * For MATLAB Caffe: MATLAB with the `mex` compiler.
 
-**cuDNN Caffe**: for fastest operation Caffe is accelerated by drop-in integration of [NVIDIA cuDNN](https://developer.nvidia.com/cudnn). To speed up your Caffe models, install cuDNN then uncomment the `USE_CUDNN := 1` flag in `Makefile.config` when installing Caffe. Acceleration is automatic. The current version is cuDNN v4; older versions are supported in older Caffe.
+**cuDNN Caffe**: for fastest operation Caffe is accelerated by drop-in integration of [NVIDIA cuDNN](https://developer.nvidia.com/cudnn). To speed up your Caffe models, install cuDNN then uncomment the `USE_CUDNN := 1` flag in `Makefile.config` when installing Caffe. Acceleration is automatic. The current version is cuDNN v5; older versions are supported in older Caffe.
 
 **CPU-only Caffe**: for cold-brewed CPU-only Caffe uncomment the `CPU_ONLY := 1` flag in `Makefile.config` to configure and build Caffe without CUDA. This is helpful for cloud or cluster deployment.
 
@@ -137,7 +137,7 @@ See [PR #1667](https://github.com/BVLC/caffe/pull/1667) for options and details.
 
 **Laboratory Tested Hardware**: Berkeley Vision runs Caffe with Titan Xs, K80s, GTX 980s, K40s, K20s, Titans, and GTX 770s including models at ImageNet/ILSVRC scale. We have not encountered any trouble in-house with devices with CUDA capability >= 3.0. All reported hardware issues thus-far have been due to GPU configuration, overheating, and the like.
 
-**CUDA compute capability**: devices with compute capability <= 2.0 may have to reduce CUDA thread numbers and batch sizes due to hardware constraints. Brew with caution; we recommend compute capbility >= 3.0.
+**CUDA compute capability**: devices with compute capability <= 2.0 may have to reduce CUDA thread numbers and batch sizes due to hardware constraints. Brew with caution; we recommend compute capability >= 3.0.
 
 Once installed, check your times against our [reference performance numbers](performance_hardware.html) to make sure everything is configured properly.
 
