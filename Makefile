@@ -407,6 +407,8 @@ endif
 
 ifeq ($(USE_TAMP), 1)
 	LIBRARIES += tampc
+	INCLUDE_DIRS += $(TAMP_DIR)
+	LIBRARY_DIRS += $(TAMP_DIR)
 endif
 
 INCLUDE_DIRS += $(BLAS_INCLUDE)
@@ -419,8 +421,8 @@ CXXFLAGS += -MMD -MP
 
 # Complete build flags.
 COMMON_FLAGS += $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir))
-CXXFLAGS += -std=c++1y -pthread -fPIC $(COMMON_FLAGS) $(WARNINGS)
-NVCCFLAGS += -D__CUDACC__ -std=c++11 -ccbin=$(CXX) -Xcompiler -fPIC $(COMMON_FLAGS)
+CXXFLAGS += -std=c++11 -pthread -fPIC $(COMMON_FLAGS) $(WARNINGS)
+NVCCFLAGS += -D__CUDACC__ -D_FORCE_INLINES -std=c++11 -ccbin=$(CXX) -Xcompiler -fPIC $(COMMON_FLAGS)
 # mex may invoke an older gcc that is too liberal with -Wuninitalized
 MATLAB_CXXFLAGS := $(CXXFLAGS) -Wno-uninitialized
 LINKFLAGS += -pthread -fPIC $(COMMON_FLAGS) $(WARNINGS)

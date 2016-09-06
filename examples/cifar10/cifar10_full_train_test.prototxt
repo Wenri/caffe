@@ -19,7 +19,7 @@ layer {
   }
   data_param {
     source: "examples/cifar10/cifar10_train_lmdb"
-    batch_size: 100
+    batch_size: 800
     backend: LMDB
   }
 }

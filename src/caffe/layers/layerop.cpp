@@ -93,21 +93,21 @@ template <typename Dtype>
 void LayerOpLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   ProcessorTape atape;
-  ExecutiveCoreCaffe core(this->processor.get());
+  CpuCoreCaffe core(this->processor.get());
   LOG(INFO)<<"Fwd Method called.\n";
   for(auto in : bottom){
     atape.input.push_back( std::shared_ptr< BufferedData > (
-	       new TypedDataCaffe<Dtype>(*in)
+	       new TypedDataCaffeCpu<Dtype>(*in)
     ));
   }
   for(auto in : this->blobs_){
     atape.input.push_back( std::shared_ptr< BufferedData > (
-	       new TypedDataCaffe<Dtype>(*in)
+	       new TypedDataCaffeCpu<Dtype>(*in)
     ));
   }
   for(auto out : top){
     atape.output.push_back( std::shared_ptr< BufferedData > (
-	       new TypedDataCaffe<Dtype>(*out)
+	       new TypedDataCaffeCpu<Dtype>(*out)
     ));
   }
   functor::LayerOpFunctor<CPUDevice>()(CPUDevice(), &core, &atape);
@@ -125,34 +125,34 @@ void LayerOpLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<Blob<Dtype>*>& bottom) {
   ProcessorTape atape;
   ProcessorTape btape;
-  ExecutiveCoreCaffe core(this->processor.get());
+  CpuCoreCaffe core(this->processor.get());
   LOG(INFO)<<"Back Method called.\n";
-  TypedDataCaffe<Dtype> * typedData;
+  TypedDataCaffeCpu<Dtype> * typedData;
   for(auto in : bottom){
-    typedData = new TypedDataCaffe<Dtype>(*in);
+    typedData = new TypedDataCaffeCpu<Dtype>(*in);
     atape.input.push_back(std::shared_ptr<BufferedData>(typedData));
-    typedData = new TypedDataCaffe<Dtype>(*in);
+    typedData = new TypedDataCaffeCpu<Dtype>(*in);
     typedData->swapBuffers();
     btape.output.push_back(std::shared_ptr<BufferedData>(typedData));
   }
   for(auto in : this->blobs_){
-    typedData = new TypedDataCaffe<Dtype>(*in);
+    typedData = new TypedDataCaffeCpu<Dtype>(*in);
     atape.input.push_back(std::shared_ptr<BufferedData>(typedData));
-    typedData = new TypedDataCaffe<Dtype>(*in);
+    typedData = new TypedDataCaffeCpu<Dtype>(*in);
     typedData->swapBuffers();
     btape.output.push_back(std::shared_ptr<BufferedData>(typedData));
   }
   for(auto out : top){
-    typedData = new TypedDataCaffe<Dtype>(*out);
+    typedData = new TypedDataCaffeCpu<Dtype>(*out);
     atape.output.push_back(std::shared_ptr<BufferedData>(typedData));
-    typedData = new TypedDataCaffe<Dtype>(*out);
+    typedData = new TypedDataCaffeCpu<Dtype>(*out);
     typedData->swapBuffers();
     btape.input.push_back(std::shared_ptr<BufferedData>(typedData));
   }
   functor::LayerOpFunctor<CPUDevice>()(CPUDevice(), &core, &atape, &btape);
   
   if (this->param_propagate_down_[0]) {
-
+    // Gradient with respect to weight
   }
   if (bias_term_ && this->param_propagate_down_[1]) {
     const Dtype* top_diff = top[0]->cpu_diff();
@@ -162,7 +162,7 @@ void LayerOpLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
         this->blobs_[1]->mutable_cpu_diff());
   }
   if (propagate_down[0]) {
-
+    // Gradient with respect to bottom data
   }
 }
 
