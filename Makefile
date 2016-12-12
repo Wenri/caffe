@@ -192,12 +192,12 @@ ifeq ($(USE_LMDB), 1)
 	LIBRARIES += lmdb
 endif
 ifeq ($(USE_OPENCV), 1)
-	LIBRARIES += opencv_core opencv_highgui opencv_imgproc 
+	LIBRARIES += opencv_core opencv_highgui opencv_imgproc
 
 	ifeq ($(OPENCV_VERSION), 3)
 		LIBRARIES += opencv_imgcodecs
 	endif
-		
+
 endif
 PYTHON_LIBRARIES ?= boost_python python2.7
 WARNINGS := -Wall -Wno-sign-compare
@@ -406,7 +406,8 @@ ifeq ($(USE_FFTW), 1)
 endif
 
 ifeq ($(USE_TAMP), 1)
-	LIBRARIES += tampc
+	TAMP_LIBRARY = $(TAMP_DIR)/libtampc.so
+	LIBRARIES += tampc tampp
 	INCLUDE_DIRS += $(TAMP_DIR)
 	LIBRARY_DIRS += $(TAMP_DIR)
 endif
@@ -577,7 +578,7 @@ $(BUILD_DIR)/.linked:
 $(ALL_BUILD_DIRS): | $(BUILD_DIR_LINK)
 	@ mkdir -p $@
 
-$(DYNAMIC_NAME): $(OBJS) | $(LIB_BUILD_DIR)
+$(DYNAMIC_NAME): $(OBJS) $(TAMP_LIBRARY) | $(LIB_BUILD_DIR)
 	@ echo LD -o $@
 	$(Q)$(CXX) -shared -o $@ $(OBJS) $(VERSIONFLAGS) $(LINKFLAGS) $(LDFLAGS)
 	@ cd $(BUILD_DIR)/lib; rm -f $(DYNAMIC_NAME_SHORT);   ln -s $(DYNAMIC_VERSIONED_NAME_SHORT) $(DYNAMIC_NAME_SHORT)
@@ -654,6 +655,10 @@ $(PY_PROTO_BUILD_DIR)/%_pb2.py : $(PROTO_SRC_DIR)/%.proto \
 
 $(PY_PROTO_INIT): | $(PY_PROTO_BUILD_DIR)
 	touch $(PY_PROTO_INIT)
+
+$(TAMP_LIBRARY): | $(ALL_BUILD_DIRS)
+	cd $(TAMP_DIR); \
+	$(TAMP_DIR)/build_caffe-cores.sh
 
 clean:
 	@- $(RM) -rf $(ALL_BUILD_DIRS)

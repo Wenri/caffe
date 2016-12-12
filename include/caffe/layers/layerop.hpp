@@ -2,7 +2,6 @@
 #define CAFFE_INNER_PRODUCT_LAYER_HPP_
 
 #include <vector>
-
 #include "caffe/blob.hpp"
 #include "caffe/layer.hpp"
 #include "caffe/proto/caffe.pb.h"
@@ -49,10 +48,10 @@ class LayerOpLayer : public Layer<Dtype> {
 private:
   Dtype getFlipInput(const Dtype* input, int index);
   void initParams();
-  
+
   Blob<Dtype> data_buffer_;
   Blob<complex<Dtype> > conv_buffer_;
-  
+
   Blob<Dtype> weight_buffer_;
   Blob<complex<Dtype> > param_buffer_;
   std::unique_ptr<structured::ProcessorBase> processor;

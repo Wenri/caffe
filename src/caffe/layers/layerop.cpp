@@ -33,16 +33,16 @@ void LayerOpLayer<Dtype>::initParams() {
 
     this->param_propagate_down_[1] = true;
 }
-  
+
 template <typename Dtype>
 void LayerOpLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
-  ProcessorRepresentative<Dtype> representative;
+    ProcessorRepresentative<Dtype> representative("Hist");
   Environment env;
   const int num_output = this->layer_param_.layer_op_param().num_output();
-  
+
   this->processor.reset(representative(&env));
-  
+
   bias_term_ = this->layer_param_.layer_op_param().bias_term();
   flip_term_ = true;
   N_ = num_output;
@@ -86,7 +86,7 @@ void LayerOpLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   vector<int> bias_shape(1, M_);
   bias_multiplier_.Reshape(bias_shape);
   caffe_set(M_, Dtype(1), bias_multiplier_.mutable_cpu_data());
-  
+
 }
 
 template <typename Dtype>
@@ -150,7 +150,7 @@ void LayerOpLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     btape.input.push_back(std::shared_ptr<BufferedData>(typedData));
   }
   functor::LayerOpFunctor<CPUDevice>()(CPUDevice(), &core, &atape, &btape);
-  
+
   if (this->param_propagate_down_[0]) {
     // Gradient with respect to weight
   }
