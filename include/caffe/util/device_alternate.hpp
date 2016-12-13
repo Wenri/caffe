@@ -35,6 +35,7 @@ void classname<Dtype>::funcname##_##gpu(const vector<Blob<Dtype>*>& top, \
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <curand.h>
+#include <cufft.h>
 #include <driver_types.h>  // cuda driver types
 #ifdef USE_CUDNN  // cuDNN acceleration library.
 #include "caffe/util/cudnn.hpp"
@@ -66,12 +67,25 @@ void classname<Dtype>::funcname##_##gpu(const vector<Blob<Dtype>*>& top, \
       << caffe::curandGetErrorString(status); \
   } while (0)
 
+#define CUFFT_CHECK(condition) \
+  do { \
+    cufftResult status = condition; \
+    CHECK_EQ(status, CUFFT_SUCCESS) << " " \
+      << cufftGetErrorString(status); \
+  } while (0)
+
 // CUDA: grid stride looping
 #define CUDA_KERNEL_LOOP(i, n) \
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; \
        i < (n); \
        i += blockDim.x * gridDim.x)
 
+#define CUDA_KERNEL_LOOP_2D(i, j, n, k)		      \
+  CUDA_KERNEL_LOOP(i, n)                              \
+  for (int j = blockIdx.y * blockDim.y + threadIdx.y; \
+       j < (k); \
+       j += blockDim.y * gridDim.y)  
+   
 // CUDA: check for error after kernel execution and exit loudly if there is one.
 #define CUDA_POST_KERNEL_CHECK CUDA_CHECK(cudaPeekAtLastError())
 
@@ -80,13 +94,23 @@ namespace caffe {
 // CUDA: library error reporting.
 const char* cublasGetErrorString(cublasStatus_t error);
 const char* curandGetErrorString(curandStatus_t error);
+const char* cufftGetErrorString(cufftResult error);
 
 // CUDA: use 512 threads per block
-const int CAFFE_CUDA_NUM_THREADS = 512;
+const int CAFFE_CUDA_NUM_THREADS = 1024;
+const dim3 CAFFE_CUDA_NUM_THREADS_2D(32,32);
 
 // CUDA: number of blocks for threads.
 inline int CAFFE_GET_BLOCKS(const int N) {
   return (N + CAFFE_CUDA_NUM_THREADS - 1) / CAFFE_CUDA_NUM_THREADS;
+}
+
+inline dim3 CAFFE_GET_BLOCKS_2D(const int N, const int K) {
+  dim3 numblocks(
+		 (N + CAFFE_CUDA_NUM_THREADS_2D.x - 1) / CAFFE_CUDA_NUM_THREADS_2D.x,
+		 (K + CAFFE_CUDA_NUM_THREADS_2D.y - 1) / CAFFE_CUDA_NUM_THREADS_2D.y
+		 );
+  return numblocks;
 }
 
 }  // namespace caffe

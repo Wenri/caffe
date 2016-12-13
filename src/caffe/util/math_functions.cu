@@ -2,7 +2,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>  // thrust::plus
 #include <thrust/reduce.h>
-
+#include <thrust/complex.h>
 #include <cmath>
 
 #include "caffe/common.hpp"
@@ -114,6 +114,82 @@ template <>
 void caffe_gpu_dot<double>(const int n, const double* x, const double* y,
     double * out) {
   CUBLAS_CHECK(cublasDdot(Caffe::cublas_handle(), n, x, 1, y, 1, out));
+}
+
+template <>
+void caffe_gpu_fft<float>(const int howmany, const int n, const float* x, complex<float>* y) {
+  /* FFTW plan handle */
+  cufftHandle hplan = Caffe::cufft_plan();
+  const cufftReal *in = reinterpret_cast<const cufftReal *>(x);
+  cufftComplex *out = reinterpret_cast<cufftComplex *>(y);
+  int Ni[] = {n};
+  int No[] = {n/2+1};
+  size_t workSize[] = {0};
+
+  CUFFT_CHECK(cufftPlanMany(&hplan, 1, Ni,
+		Ni, 1, n,
+		No, 1, n/2+1,
+		CUFFT_R2C, howmany));
+
+  CUFFT_CHECK(cufftExecR2C(hplan, const_cast<cufftReal *>(in), out)); 
+  CUFFT_CHECK(cufftDestroy(hplan));
+}
+
+template <>
+void caffe_gpu_ifft<float>(const int howmany, const int n, const complex<float>* x, float* y){
+  /* FFTW plan handle */
+  cufftHandle hplan = Caffe::cufft_plan();
+  const cufftComplex *in = reinterpret_cast<const cufftComplex *>(x);
+  cufftReal *out = reinterpret_cast<cufftReal *>(y);
+  int Ni[] = {n/2+1};
+  int No[] = {n};
+  size_t workSize[] = {0};
+
+  CUFFT_CHECK(cufftPlanMany(&hplan, 1, No,
+		Ni, 1, n/2+1,
+		No, 1, n,
+		CUFFT_C2R, howmany));
+
+  CUFFT_CHECK(cufftExecC2R(hplan, const_cast<cufftComplex *>(in), out)); 
+  CUFFT_CHECK(cufftDestroy(hplan));
+}
+
+template <>
+void caffe_gpu_fft<double>(const int howmany, const int n, const double* x, complex<double>* y) {
+  /* FFTW plan handle */
+  cufftHandle hplan = Caffe::cufft_plan();
+  const cufftDoubleReal *in = reinterpret_cast<const cufftDoubleReal *>(x);
+  cufftDoubleComplex *out = reinterpret_cast<cufftDoubleComplex *>(y);
+  int Ni[] = {n};
+  int No[] = {n/2+1};
+  size_t workSize[] = {0};
+
+  CUFFT_CHECK(cufftPlanMany(&hplan, 1, Ni,
+		Ni, 1, n,
+		No, 1, n/2+1,
+		CUFFT_D2Z, howmany));
+
+  CUFFT_CHECK(cufftExecD2Z(hplan, const_cast<cufftDoubleReal *>(in), out)); 
+  CUFFT_CHECK(cufftDestroy(hplan));
+}
+
+template <>
+void caffe_gpu_ifft<double>(const int howmany, const int n, const complex<double>* x, double* y){
+  /* FFTW plan handle */
+  cufftHandle hplan = Caffe::cufft_plan();
+  const cufftDoubleComplex *in = reinterpret_cast<const cufftDoubleComplex *>(x);
+  cufftDoubleReal *out = reinterpret_cast<cufftDoubleReal *>(y);
+  int Ni[] = {n/2+1};
+  int No[] = {n};
+  size_t workSize[] = {0};
+
+  CUFFT_CHECK(cufftPlanMany(&hplan, 1, No,
+		Ni, 1, n/2+1,
+		No, 1, n,
+		CUFFT_Z2D, howmany));
+
+  CUFFT_CHECK(cufftExecZ2D(hplan, const_cast<cufftDoubleComplex *>(in), out)); 
+  CUFFT_CHECK(cufftDestroy(hplan));
 }
 
 template <>
@@ -253,6 +329,28 @@ void caffe_gpu_mul<double>(const int N, const double* a,
   // NOLINT_NEXT_LINE(whitespace/operators)
   mul_kernel<double><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
       N, a, b, y);
+}
+
+template <>
+void caffe_gpu_mul<std::complex<float>>(const int N, const std::complex<float>* a,
+    const std::complex<float>* b, std::complex<float>* y) {
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  mul_kernel<thrust::complex<float>><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
+      N, 
+      reinterpret_cast<const thrust::complex<float> *>(a), 
+      reinterpret_cast<const thrust::complex<float> *>(b), 
+      reinterpret_cast<thrust::complex<float> *>(y));
+}
+
+template <>
+void caffe_gpu_mul<std::complex<double>>(const int N, const std::complex<double>* a,
+    const std::complex<double>* b, std::complex<double>* y) {
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  mul_kernel<thrust::complex<double>><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
+      N,
+      reinterpret_cast<const thrust::complex<double> *>(a), 
+      reinterpret_cast<const thrust::complex<double> *>(b), 
+      reinterpret_cast<thrust::complex<double> *>(y));
 }
 
 template <typename Dtype>
