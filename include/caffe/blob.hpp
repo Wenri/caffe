@@ -226,8 +226,6 @@ class Blob {
   Dtype* mutable_gpu_data();
   Dtype* mutable_cpu_diff();
   Dtype* mutable_gpu_diff();
-<<<<<<< HEAD
-=======
 
   // jay add
   const Dtype* cpu_data_at(const int n = 0, const int c = 0,
@@ -248,7 +246,6 @@ class Blob {
 			     const int h = 0, const int w = 0);
   // end jay add
 
->>>>>>> deeplab
   void Update();
   void FromProto(const BlobProto& proto, bool reshape = true);
   void ToProto(BlobProto* proto, bool write_diff = false) const;
