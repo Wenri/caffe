@@ -45,9 +45,11 @@ namespace caffe {
 
         void initParams();
 
-        int M_;
-        int K_;
-        int N_;
+        int num_output;
+        int batch_size;
+        int input_K;
+        int output_K;
+
         bool bias_term_;
         Blob<Dtype> bias_multiplier_;
         structured::Environment env;
