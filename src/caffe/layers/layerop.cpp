@@ -79,7 +79,7 @@ namespace caffe {
         auto learningVars = functor->allocateVars(num_output);
         this->blobs_.reserve(num_output);
 
-        for (auto var : learningVars)
+        for (auto&& var : learningVars)
             this->blobs_.emplace_back(var);
 
         this->param_propagate_down_.resize(this->blobs_.size(), true);
@@ -123,7 +123,7 @@ namespace caffe {
                                           const vector<Blob<Dtype>*>& top) {
 
         LOG(INFO)<<"Fwd Method called.\n";
-
+        (*functor)(bottom, top);
         if (bias_term_) {
             Dtype* top_data = top[0]->mutable_cpu_data();
             caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans,
@@ -141,6 +141,7 @@ namespace caffe {
 
         LOG(INFO)<<"Back Method called.\n";
 
+        (*functor)(top, propagate_down, bottom);
         if (this->param_propagate_down_[0]) {
             // Gradient with respect to weight
         }
