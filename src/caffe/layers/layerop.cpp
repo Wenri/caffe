@@ -11,21 +11,10 @@ using namespace structured;
 namespace caffe {
     template <typename Dtype>
     LayerOpLayer<Dtype>::LayerOpLayer(const LayerParameter& param):
-        Layer<Dtype>(param), env(param.layer_op_param().cmdline()) {
+        Layer<Dtype>(param), env(param.layer_op_param().cmdline()),
+        functor(functor::FunctorCaffe<Dtype>::acquireFunctor(env)){
 
         num_output = this->layer_param_.layer_op_param().num_output();
-
-        switch (Caffe::mode()) {
-        case Caffe::CPU:
-            functor.reset(new functor::LayerOpFunctor<Dtype, CPUDevice>(env));
-            break;
-        case Caffe::GPU:
-            functor.reset(new functor::LayerOpFunctor<Dtype, GPUDevice>(env));
-            break;
-        default:
-            LOG(FATAL) << "Unknown caffe mode.";
-        }
-
     }
 
     template <typename Dtype>
