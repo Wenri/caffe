@@ -133,7 +133,7 @@ layer {
 }
 layer {
   name: "ip1"
-  type: "KroneckerProduct"
+  type: "InnerProduct"
   bottom: "pool3"
   top: "ip1"
   param {

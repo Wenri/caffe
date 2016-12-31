@@ -24,10 +24,10 @@ namespace caffe {
 
     template <typename Dtype>
     void LayerOpLayer<Dtype>::initParams() {
-        /*
+
         // Intialize the weight
-        vector<int> weight_shape(1, K_);
-        this->blobs_[0].reset(new Blob<Dtype>(weight_shape));
+        vector<int> weight_shape(1, input_K);
+        this->blobs_[0]->Reshape(weight_shape);
 
         // fill the weights
         shared_ptr<Filler<Dtype> > weight_filler(
@@ -38,15 +38,16 @@ namespace caffe {
 
         this->param_propagate_down_[0] = true;
 
-        vector<int> bias_shape(1, N_);
-        this->blobs_[1].reset(new Blob<Dtype>(bias_shape));
-        shared_ptr<Filler<Dtype> > bias_filler(
-            GetFiller<Dtype>(
-                this->layer_param_.layer_op_param().bias_filler()
-                ));
-        bias_filler->Fill(this->blobs_[1].get());
+        /*
+          vector<int> bias_shape(1, N_);
+          this->blobs_[1].reset(new Blob<Dtype>(bias_shape));
+          shared_ptr<Filler<Dtype> > bias_filler(
+          GetFiller<Dtype>(
+          this->layer_param_.layer_op_param().bias_filler()
+          ));
+          bias_filler->Fill(this->blobs_[1].get());
 
-        this->param_propagate_down_[1] = true;
+          this->param_propagate_down_[1] = true;
         */
     }
 
@@ -62,28 +63,30 @@ namespace caffe {
         // length K_ vector. For example, if bottom[0]'s shape is (N, C, H, W),
         // and axis == 1, N inner products with dimension CHW are performed.
         input_K = bottom[0]->count(axis);
-        LOG(INFO)<<"LayerOpLayerSetUp, N="<<num_output<<", K="<<output_K;
+        LOG(INFO)<<"LayerOpLayerSetUp, N="<<num_output<<", K="<<input_K;
 
-        // Check if we need to set up the weights
-        auto learningVars = functor->allocateVars(num_output);
-        this->blobs_.reserve(num_output);
+        if(this->blobs_.size() > 0) {
+            LOG(INFO)<<"Vars already inited";
+        } else {
+            // Check if we need to set up the weights
+            auto learningVars = functor->allocateVars(num_output);
+            this->blobs_.reserve(num_output);
 
-        for (auto&& var : learningVars)
-            this->blobs_.emplace_back(var);
+            for (auto&& var : learningVars)
+                this->blobs_.emplace_back(var);
 
-        this->param_propagate_down_.resize(this->blobs_.size(), true);
+            this->param_propagate_down_.resize(this->blobs_.size(), true);
 
-        processor.reset(functor->acquire(bottom, top));
+            processor.reset(functor->acquire(bottom, top));
 
-        // parameter initialization
-        this->initParams();
+            // parameter initialization
+            this->initParams();
+        }
     }
 
     template <typename Dtype>
     void LayerOpLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
                                       const vector<Blob<Dtype>*>& top) {
-
-        functor->load(bottom, top);
 
         // Figure out the dimensions
         const int axis = bottom[0]->CanonicalAxisIndex(
@@ -98,13 +101,14 @@ namespace caffe {
         // The top shape will be the bottom shape with the flattened axes dropped,
         // and replaced by a single axis with dimension num_output (N_).
         functor->load(bottom, top);
-
         output_K = top[0]->count(axis);
-        // Set up the bias multiplier
-        vector<int> bias_shape(1, batch_size);
-        bias_multiplier_.Reshape(bias_shape);
-        caffe_set(batch_size, Dtype(1), bias_multiplier_.mutable_cpu_data());
 
+        if (bias_term_) {
+            // Set up the bias multiplier
+            vector<int> bias_shape(1, batch_size);
+            bias_multiplier_.Reshape(bias_shape);
+            caffe_set(batch_size, Dtype(1), bias_multiplier_.mutable_cpu_data());
+        }
     }
 
     template <typename Dtype>
