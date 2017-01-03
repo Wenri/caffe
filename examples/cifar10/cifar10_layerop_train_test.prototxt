@@ -203,7 +203,7 @@ layer {
  layer_op_param {
    num_output: 1
    bias_term: false
-   cmdline: "Hist"
+   cmdline: "Hist ../tools/gknlctr.txt"
    weight_filler {
      type: "gaussian"
      std: 0.1
