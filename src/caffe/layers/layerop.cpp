@@ -8,6 +8,14 @@
 
 using namespace structured;
 
+template<class SharedPointer> struct Holder {
+    SharedPointer p;
+    Holder(const SharedPointer &p) : p(p) {}
+    Holder(const Holder &other): p(other.p) {}
+    Holder(Holder &&other) : p(std::move(other.p)) {}
+    void operator () (...) { p.reset(); }
+};
+
 namespace caffe {
     template <typename Dtype>
     LayerOpLayer<Dtype>::LayerOpLayer(const LayerParameter& param):
@@ -73,7 +81,10 @@ namespace caffe {
             this->blobs_.reserve(num_output);
 
             for (auto&& var : learningVars)
-                this->blobs_.emplace_back(var);
+                this->blobs_.emplace_back(
+                    var.get(),
+                    Holder<std::shared_ptr<Var_t<Dtype>>>(var)
+                    );
 
             this->param_propagate_down_.resize(this->blobs_.size(), true);
 
