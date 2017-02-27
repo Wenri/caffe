@@ -1,5 +1,5 @@
 #include <vector>
-
+#include <boost/make_shared.hpp>
 #include "caffe/filler.hpp"
 #include "caffe/layers/layerop.hpp"
 #include "caffe/util/math_functions.hpp"
@@ -32,31 +32,25 @@ namespace caffe {
 
     template <typename Dtype>
     void LayerOpLayer<Dtype>::initParams() {
-
-        // Intialize the weight
-        vector<int> weight_shape(1, input_K);
-        this->blobs_[0]->Reshape(weight_shape);
-
-        // fill the weights
-        shared_ptr<Filler<Dtype> > weight_filler(
-            GetFiller<Dtype>(
-                this->layer_param_.layer_op_param().weight_filler()
-                ));
-        weight_filler->Fill(this->blobs_[0].get());
-
-        this->param_propagate_down_[0] = true;
-
-        /*
-          vector<int> bias_shape(1, N_);
-          this->blobs_[1].reset(new Blob<Dtype>(bias_shape));
-          shared_ptr<Filler<Dtype> > bias_filler(
-          GetFiller<Dtype>(
-          this->layer_param_.layer_op_param().bias_filler()
-          ));
-          bias_filler->Fill(this->blobs_[1].get());
-
-          this->param_propagate_down_[1] = true;
-        */
+        if(this->blobs_.size()) {
+            shared_ptr<Filler<Dtype> > weight_filler(
+                GetFiller<Dtype>(
+                    this->layer_param_.layer_op_param().weight_filler()
+                    ));
+            for(auto&& var : this->blobs_)
+                weight_filler->Fill(var.get());   // fill the weights
+        }
+        if (bias_term_) {
+            vector<int> bias_shape(1, output_K);
+            this->blobs_.emplace_back(
+                boost::make_shared<Blob<Dtype>>(bias_shape));
+            shared_ptr<Filler<Dtype> > bias_filler(
+                GetFiller<Dtype>(
+                    this->layer_param_.layer_op_param().bias_filler()
+                    ));
+            bias_filler->Fill(this->blobs_.back().get());
+            this->param_propagate_down_.emplace_back(true);
+        }
     }
 
     template <typename Dtype>
@@ -75,24 +69,26 @@ namespace caffe {
 
         if(this->blobs_.size() > 0) {
             LOG(INFO)<<"Vars already inited";
-        } else {
-            // Check if we need to set up the weights
-            auto learningVars = functor->allocateVars(num_output);
-            this->blobs_.reserve(num_output);
-
-            for (auto&& var : learningVars)
-                this->blobs_.emplace_back(
-                    var.get(),
-                    Holder<std::shared_ptr<Var_t<Dtype>>>(var)
-                    );
-
-            this->param_propagate_down_.resize(this->blobs_.size(), true);
-
             processor.reset(functor->acquire(bottom, top));
+        } else {
+            if(bias_term_ || num_output) {
+                // Check if we need to set up the weights
+                auto learningVars = functor->allocateVars(num_output);
+                this->blobs_.reserve(num_output + bias_term_);
 
+                for (auto&& var : learningVars)
+                    this->blobs_.emplace_back(
+                        var.get(),
+                        Holder<std::shared_ptr<Var_t<Dtype>>>(var)
+                        );
+
+                this->param_propagate_down_.resize(this->blobs_.size(), true);
+            }
+            processor.reset(functor->acquire(bottom, top));
             // parameter initialization
             this->initParams();
         }
+
     }
 
     template <typename Dtype>
