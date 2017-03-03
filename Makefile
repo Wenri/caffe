@@ -665,7 +665,7 @@ $(PY_PROTO_INIT): | $(PY_PROTO_BUILD_DIR)
 
 $(TAMP_LIBRARY): | $(ALL_BUILD_DIRS)
 	cd $(TAMP_DIR); \
-	$(TAMP_DIR)/build_caffe-cores.sh
+	$(TAMP_DIR)/scripts/build_caffe-cores.sh
 
 clean:
 	@- $(RM) -rf $(ALL_BUILD_DIRS)
