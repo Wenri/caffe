@@ -142,7 +142,8 @@ namespace caffe {
         LOG(INFO)<<"Back Method called.\n";
 
         (*functor)(top, propagate_down, bottom);
-        if (this->param_propagate_down_[0]) {
+        if (this->param_propagate_down_.size() &&
+            this->param_propagate_down_[0]) {
             // Gradient with respect to weight
         }
         if (bias_term_ && this->param_propagate_down_[1]) {

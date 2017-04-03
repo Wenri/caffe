@@ -31,7 +31,8 @@ namespace caffe {
                                            const vector<bool>& propagate_down,
                                            const vector<Blob<Dtype>*>& bottom) {
         (*functor)(top, propagate_down, bottom);
-        if (this->param_propagate_down_[0]) {
+        if (this->param_propagate_down_.size() &&
+            this->param_propagate_down_[0]) {
             // Gradient with respect to weight
         }
         if (bias_term_ && this->param_propagate_down_[1]) {
