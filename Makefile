@@ -428,9 +428,9 @@ LIBRARY_DIRS += $(LIB_BUILD_DIR)
 CXXFLAGS += -MMD -MP
 
 # Complete build flags.
-COMMON_FLAGS += $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir))
-CXXFLAGS += -std=c++11 -pthread -fPIC $(COMMON_FLAGS) $(WARNINGS)
-NVCCFLAGS += -D__CUDACC__ -std=c++11 -ccbin=$(CXX) -Xcompiler -fPIC $(COMMON_FLAGS)
+COMMON_FLAGS += -std=c++11 $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir))
+CXXFLAGS += -pthread -fPIC $(COMMON_FLAGS) $(WARNINGS)
+NVCCFLAGS += -D__CUDACC__ -ccbin=$(CXX) -Xcompiler -fPIC $(COMMON_FLAGS)
 # mex may invoke an older gcc that is too liberal with -Wuninitalized
 MATLAB_CXXFLAGS := $(CXXFLAGS) -Wno-uninitialized
 LINKFLAGS += -pthread -fPIC $(COMMON_FLAGS) $(WARNINGS)
