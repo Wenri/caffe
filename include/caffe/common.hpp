@@ -164,6 +164,8 @@ class Caffe {
   // Parallel training info
   inline static int solver_count() { return Get().solver_count_; }
   inline static void set_solver_count(int val) { Get().solver_count_ = val; }
+  inline static int solver_rank() { return Get().solver_rank_; }
+  inline static void set_solver_rank(int val) { Get().solver_rank_ = val; }
   inline static bool root_solver() { return Get().root_solver_; }
   inline static void set_root_solver(bool val) { Get().root_solver_ = val; }
 
@@ -177,6 +179,7 @@ class Caffe {
 
   Brew mode_;
   int solver_count_;
+  int solver_rank_;
   bool root_solver_;
 
  private:

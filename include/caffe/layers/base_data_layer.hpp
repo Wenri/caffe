@@ -74,7 +74,7 @@ class BasePrefetchingDataLayer :
   virtual void InternalThreadEntry();
   virtual void load_batch(Batch<Dtype>* batch) = 0;
 
-  Batch<Dtype> prefetch_[PREFETCH_COUNT];
+  vector<shared_ptr<Batch<Dtype> > > prefetch_;
   BlockingQueue<Batch<Dtype>*> prefetch_free_;
   BlockingQueue<Batch<Dtype>*> prefetch_full_;
 

@@ -36,9 +36,11 @@ template <typename Dtype>
 BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
     const LayerParameter& param)
     : BaseDataLayer<Dtype>(param),
+      prefetch_(PREFETCH_COUNT),
       prefetch_free_(), prefetch_full_() {
   for (int i = 0; i < PREFETCH_COUNT; ++i) {
-    prefetch_free_.push(&prefetch_[i]);
+    prefetch_[i].reset(new Batch<Dtype>());
+    prefetch_free_.push(prefetch_[i].get());
   }
 }
 
@@ -51,17 +53,17 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
   // cudaMalloc calls when the main thread is running. In some GPUs this
   // seems to cause failures if we do not so.
   for (int i = 0; i < PREFETCH_COUNT; ++i) {
-    prefetch_[i].data_.mutable_cpu_data();
+    prefetch_[i]->data_.mutable_cpu_data();
     if (this->output_labels_) {
-      prefetch_[i].label_.mutable_cpu_data();
+      prefetch_[i]->label_.mutable_cpu_data();
     }
   }
 #ifndef CPU_ONLY
   if (Caffe::mode() == Caffe::GPU) {
     for (int i = 0; i < PREFETCH_COUNT; ++i) {
-      prefetch_[i].data_.mutable_gpu_data();
+      prefetch_[i]->data_.mutable_gpu_data();
       if (this->output_labels_) {
-        prefetch_[i].label_.mutable_gpu_data();
+        prefetch_[i]->label_.mutable_gpu_data();
       }
     }
   }
@@ -134,23 +136,23 @@ void ImageDimPrefetchingDataLayer<Dtype>::LayerSetUp(
     output_data_dim_ = false;
   }
   for (int i = 0; i < BasePrefetchingDataLayer<Dtype>::PREFETCH_COUNT; ++i) {
-    this->prefetch_[i].data_.mutable_cpu_data();
+    this->prefetch_[i]->data_.mutable_cpu_data();
     if (this->output_labels_) {
-      this->prefetch_[i].label_.mutable_cpu_data();
+      this->prefetch_[i]->label_.mutable_cpu_data();
     }
     if (output_data_dim_) {
-      this->prefetch_[i].dim_.mutable_cpu_data();
+      this->prefetch_[i]->dim_.mutable_cpu_data();
     }
   }
 #ifndef CPU_ONLY
   if (Caffe::mode() == Caffe::GPU) {
     for (int i = 0; i < BasePrefetchingDataLayer<Dtype>::PREFETCH_COUNT; ++i) {
-      this->prefetch_[i].data_.mutable_gpu_data();
+      this->prefetch_[i]->data_.mutable_gpu_data();
       if (this->output_labels_) {
-        this->prefetch_[i].label_.mutable_gpu_data();
+        this->prefetch_[i]->label_.mutable_gpu_data();
       }
       if (output_data_dim_) {
-	this->prefetch_[i].dim_.mutable_gpu_data();
+	this->prefetch_[i]->dim_.mutable_gpu_data();
       }
     }
   }

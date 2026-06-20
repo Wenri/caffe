@@ -35,7 +35,7 @@ void ImageSegDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom
   string root_folder = this->layer_param_.image_data_param().root_folder();
 
   TransformationParameter transform_param = this->layer_param_.transform_param();
-  CHECK(transform_param.has_mean_file() == false) << 
+  CHECK(transform_param.has_mean_file() == false) <<
          "ImageSegDataLayer does not support mean file";
   CHECK((new_height == 0 && new_width == 0) ||
       (new_height > 0 && new_width > 0)) << "Current implementation requires "
@@ -64,6 +64,11 @@ void ImageSegDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom
     const unsigned int prefetch_rng_seed = caffe_rng_rand();
     prefetch_rng_.reset(new Caffe::RNG(prefetch_rng_seed));
     ShuffleImages();
+  } else {
+    if (this->phase_ == TRAIN && Caffe::solver_rank() > 0 &&
+        this->layer_param_.image_data_param().rand_skip() == 0) {
+      LOG(WARNING) << "Shuffling or skipping recommended for multi-GPU";
+    }
   }
   LOG(INFO) << "A total of " << lines_.size() << " images.";
 
@@ -94,7 +99,7 @@ void ImageSegDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom
   if (transform_param.has_crop_size()) {
     crop_width = transform_param.crop_size();
     crop_height = transform_param.crop_size();
-  } 
+  }
   if (transform_param.has_crop_height() && transform_param.has_crop_width()) {
     crop_width = transform_param.crop_width();
     crop_height = transform_param.crop_height();
@@ -105,33 +110,33 @@ void ImageSegDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom
     top[0]->Reshape(batch_size, channels, crop_height, crop_width);
     this->transformed_data_.Reshape(batch_size, channels, crop_height, crop_width);
     for (int i = 0; i < this->PREFETCH_COUNT; ++i) {
-      this->prefetch_[i].data_.Reshape(batch_size, channels, crop_height, crop_width);
+      this->prefetch_[i]->data_.Reshape(batch_size, channels, crop_height, crop_width);
     }
 
     //label
     top[1]->Reshape(batch_size, 1, crop_height, crop_width);
     this->transformed_label_.Reshape(batch_size, 1, crop_height, crop_width);
     for (int i = 0; i < this->PREFETCH_COUNT; ++i) {
-      this->prefetch_[i].label_.Reshape(batch_size, 1, crop_height, crop_width);
+      this->prefetch_[i]->label_.Reshape(batch_size, 1, crop_height, crop_width);
     }
   } else {
     top[0]->Reshape(batch_size, channels, height, width);
     this->transformed_data_.Reshape(batch_size, channels, height, width);
     for (int i = 0; i < this->PREFETCH_COUNT; ++i) {
-      this->prefetch_[i].data_.Reshape(batch_size, channels, height, width);
+      this->prefetch_[i]->data_.Reshape(batch_size, channels, height, width);
     }
 
     //label
     top[1]->Reshape(batch_size, 1, height, width);
     this->transformed_label_.Reshape(batch_size, 1, height, width);
     for (int i = 0; i < this->PREFETCH_COUNT; ++i) {
-      this->prefetch_[i].label_.Reshape(batch_size, 1, height, width);
+      this->prefetch_[i]->label_.Reshape(batch_size, 1, height, width);
     }
   }
   // image dimensions, for each image, stores (img_height, img_width)
   top[2]->Reshape(batch_size, 1, 1, 2);
   for (int i = 0; i < this->PREFETCH_COUNT; ++i) {
-    this->prefetch_[i].dim_.Reshape(batch_size, 1, 1, 2);
+    this->prefetch_[i]->dim_.Reshape(batch_size, 1, 1, 2);
   }
 
   LOG(INFO) << "output data size: " << top[0]->num() << ","
@@ -166,7 +171,7 @@ void ImageSegDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   CHECK(this->transformed_data_.count());
 
   Dtype* top_data     = batch->data_.mutable_cpu_data();
-  Dtype* top_label    = batch->label_.mutable_cpu_data(); 
+  Dtype* top_label    = batch->label_.mutable_cpu_data();
   Dtype* top_data_dim = batch->dim_.mutable_cpu_data();
 
   const int max_height = batch->data_.height();
@@ -214,12 +219,12 @@ void ImageSegDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
     }
     else if (label_type == ImageDataParameter_LabelType_IMAGE) {
       const int label = atoi(lines_[lines_id_].second.c_str());
-      cv::Mat seg(cv_img_seg[0].rows, cv_img_seg[0].cols, 
+      cv::Mat seg(cv_img_seg[0].rows, cv_img_seg[0].cols,
 		  CV_8UC1, cv::Scalar(label));
-      cv_img_seg.push_back(seg);      
+      cv_img_seg.push_back(seg);
     }
     else {
-      cv::Mat seg(cv_img_seg[0].rows, cv_img_seg[0].cols, 
+      cv::Mat seg(cv_img_seg[0].rows, cv_img_seg[0].cols,
 		  CV_8UC1, cv::Scalar(ignore_label));
       cv_img_seg.push_back(seg);
     }
@@ -234,7 +239,7 @@ void ImageSegDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
     offset = batch->label_.offset(item_id);
     this->transformed_label_.set_cpu_data(top_label + offset);
 
-    this->data_transformer_->TransformImgAndSeg(cv_img_seg, 
+    this->data_transformer_->TransformImgAndSeg(cv_img_seg,
 	 &(this->transformed_data_), &(this->transformed_label_),
 	 ignore_label);
     trans_time += timer.MicroSeconds();
