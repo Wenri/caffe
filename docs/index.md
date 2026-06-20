@@ -4,6 +4,8 @@ title: Deep Learning Framework
 
 # Caffe
 
+> **Tamp fork** — this Caffe build provides the plugin interface for [Tamp](https://github.com/Wenri/Tamp)'s structured-transform layers (circulant, Toeplitz, skew-circulant, low-rank, ACDC) for neural-network compression, enabled via `USE_TAMP`. The documentation below is the upstream Caffe reference.
+
 Caffe is a deep learning framework made with expression, speed, and modularity in mind.
 It is developed by Berkeley AI Research ([BAIR](http://bair.berkeley.edu)) and by community contributors.
 [Yangqing Jia](http://daggerfs.com) created the project during his PhD at UC Berkeley.

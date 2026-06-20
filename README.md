@@ -1,4 +1,14 @@
-# Caffe
+# Caffe — Tamp fork
+
+> **A fork of [Caffe](https://github.com/BVLC/caffe) (with DeepLab additions), maintained for the [Tamp](https://github.com/Wenri/Tamp) project.**
+>
+> Tamp reduces the space and compute of deep neural networks by replacing dense weight matrices with **structured transforms** — circulant, Toeplitz, skew-circulant, low-rank, and ACDC. Vanilla Caffe has no interface for such custom layers, so this fork adds the Caffe-side plugin hooks that Tamp builds against; enable them with `USE_TAMP` in `Makefile.config`. See the [Tamp repository](https://github.com/Wenri/Tamp) for how the pieces fit together and how to build.
+>
+> **Branches:** the Tamp build pins **`color`**; other branches hold per-transform experiments (`circulant`, `skewcirculant`, `reskewcirculant`, `fftw`, `GPUOptimize`, …), while `master` tracks upstream BVLC Caffe (release tags `rc`–`rc5`, `v0.1`–`v0.9999`).
+
+---
+
+## About Caffe (upstream)
 
 [![Build Status](https://travis-ci.org/BVLC/caffe.svg?branch=master)](https://travis-ci.org/BVLC/caffe)
 [![License](https://img.shields.io/badge/license-BSD-blue.svg)](LICENSE)
